@@ -188,15 +188,16 @@ extern "C" {
      */
     RN2903_RESPONSE_T rn2903_command(const rn2903_context dev,
                                        const char *cmd);
-    RN2903_RESPONSE_T rn2903_response(const rn2903_context dev, int wait_ms);
+    RN2903_RESPONSE_T rn2903_waitfor_response(const rn2903_context dev,
+                                              int wait_ms);
 
     const char *rn2903_get_response(const rn2903_context dev);
     size_t rn2903_get_response_len(const rn2903_context dev);
 
-    char *rn2903_to_hex(const rn2903_context dev,
-                        const void *src, int len);
-    char *rn2903_from_hex(const rn2903_context dev,
-                          const void *src);
+    const char *rn2903_to_hex(const rn2903_context dev,
+                              const void *src, int len);
+    const char *rn2903_from_hex(const rn2903_context dev,
+                                const void *src);
 
     RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
                                      RN2903_JOIN_TYPE_T type);

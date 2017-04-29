@@ -48,27 +48,27 @@ extern "C" {
 
     // RN2903_MAC_STATUS_BITS_T from "mac get status" cmd
     typedef enum {
-        RN2903_MAC_STATUS_JOINED          = 0x0001,
+        RN2903_MAC_STATUS_JOINED              = 0x0001,
 
-        RN2903_MAC_STATUS_MAC_STATUS0     = 0x0002,
-        RN2903_MAC_STATUS_MAC_STATUS1     = 0x0004,
-        RN2903_MAC_STATUS_MAC_STATUS2     = 0x0008,
-        _RN2903_MAC_STATUS_MAC_STATUS_MASK = 7,
-        _RN2903_MAC_STATUS_MAC_STATUS_SHIFT = 1,
+        RN2903_MAC_STATUS_MAC_STATUS0         = 0x0002,
+        RN2903_MAC_STATUS_MAC_STATUS1         = 0x0004,
+        RN2903_MAC_STATUS_MAC_STATUS2         = 0x0008,
+        _RN2903_MAC_STATUS_MAC_STATUS_MASK    = 7,
+        _RN2903_MAC_STATUS_MAC_STATUS_SHIFT   = 1,
 
-        RN2903_MAC_STATUS_AUTO_REPLY      = 0x0010,
-        RN2903_MAC_STATUS_ADR             = 0x0020,
-        RN2903_MAC_STATUS_SILENT          = 0x0040,
-        RN2903_MAC_STATUS_PAUSED          = 0x0080,
-        RN2903_MAC_STATUS_RFU             = 0x0100,
-        RN2903_MAC_STATUS_LINK_CHK        = 0x0200,
+        RN2903_MAC_STATUS_AUTO_REPLY          = 0x0010,
+        RN2903_MAC_STATUS_ADR                 = 0x0020,
+        RN2903_MAC_STATUS_SILENT              = 0x0040,
+        RN2903_MAC_STATUS_PAUSED              = 0x0080,
+        RN2903_MAC_STATUS_RFU                 = 0x0100,
+        RN2903_MAC_STATUS_LINK_CHK            = 0x0200,
 
-        RN2903_MAC_STATUS_CHAN_UPD        = 0x0400,
-        RN2903_MAC_STATUS_OUT_PWR_UPD     = 0x0800,
-        RN2903_MAC_STATUS_NBREP_UPD       = 0x1000,
-        RN2903_MAC_STATUS_PRESCALER_UPD   = 0x2000,
-        RN2903_MAC_STATUS_SECOND_RX_UPD   = 0x4000,
-        RN2903_MAC_STATUS_TX_TIMING_UPD   = 0x8000,
+        RN2903_MAC_STATUS_CHAN_UPD            = 0x0400,
+        RN2903_MAC_STATUS_OUT_PWR_UPD         = 0x0800,
+        RN2903_MAC_STATUS_NBREP_UPD           = 0x1000,
+        RN2903_MAC_STATUS_PRESCALER_UPD       = 0x2000,
+        RN2903_MAC_STATUS_SECOND_RX_UPD       = 0x4000,
+        RN2903_MAC_STATUS_TX_TIMING_UPD       = 0x8000,
     } RN2903_MAC_STATUS_BITS_T;
 
     // RN2903_MAC_STATUS_MAC_STATUS values
@@ -92,14 +92,14 @@ extern "C" {
     // Join status
     typedef enum {
         RN2903_JOIN_STATUS_ACCEPTED           = 0,
-        RN2903_JOIN_STATUS_BAD_KEYS,
-        RN2903_JOIN_STATUS_NO_CHAN,
-        RN2903_JOIN_STATUS_SILENT,
-        RN2903_JOIN_STATUS_BUSY,
-        RN2903_JOIN_STATUS_MAC_PAUSED,
-        RN2903_JOIN_STATUS_DENIED,
-        RN2903_JOIN_STATUS_ALREADY_JOINED,
-        RN2903_JOIN_STATUS_UPM_ERROR,
+        RN2903_JOIN_STATUS_BAD_KEYS           = 1,
+        RN2903_JOIN_STATUS_NO_CHAN            = 2,
+        RN2903_JOIN_STATUS_SILENT             = 3,
+        RN2903_JOIN_STATUS_BUSY               = 4,
+        RN2903_JOIN_STATUS_MAC_PAUSED         = 5,
+        RN2903_JOIN_STATUS_DENIED             = 6,
+        RN2903_JOIN_STATUS_ALREADY_JOINED     = 7,
+        RN2903_JOIN_STATUS_UPM_ERROR          = 8,
     } RN2903_JOIN_STATUS_T;
 
     // possible flow control methods

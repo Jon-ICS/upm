@@ -276,7 +276,8 @@ void rn2903_drain(const rn2903_context dev)
     return;
 }
 
-RN2903_RESPONSE_T rn2903_response(const rn2903_context dev, int wait_ms)
+RN2903_RESPONSE_T rn2903_waitfor_response(const rn2903_context dev,
+                                          int wait_ms)
 {
     assert(dev != NULL);
 
@@ -350,7 +351,7 @@ RN2903_RESPONSE_T rn2903_command(const rn2903_context dev, const char *cmd)
         return RN2903_RESPONSE_UPM_ERROR;
     }
 
-    return rn2903_response(dev, dev->cmd_resp_wait_ms);
+    return rn2903_waitfor_response(dev, dev->cmd_resp_wait_ms);
 }
 
 const char *rn2903_get_response(const rn2903_context dev)
@@ -367,7 +368,7 @@ size_t rn2903_get_response_len(const rn2903_context dev)
     return dev->resp_len;
 }
 
-char *rn2903_to_hex(const rn2903_context dev, const void *src, int len)
+const char *rn2903_to_hex(const rn2903_context dev, const void *src, int len)
 {
     assert(dev != NULL);
     assert(src != NULL);
@@ -405,7 +406,7 @@ char *rn2903_to_hex(const rn2903_context dev, const void *src, int len)
     return dev->to_hex_buf;
 }
 
-char *rn2903_from_hex(const rn2903_context dev,
+const char *rn2903_from_hex(const rn2903_context dev,
                       const void *src)
 {
     assert(dev != NULL);
@@ -473,7 +474,7 @@ upm_result_t rn2903_update_mac_status(const rn2903_context dev)
     }
 
     // convert it
-    char *statPtr = (char *)rn2903_from_hex(dev, dev->resp_data);
+    const char *statPtr = rn2903_from_hex(dev, dev->resp_data);
     if (!statPtr)
     {
         printf("%s: from_hex conversion failed.\n", __FUNCTION__);
@@ -527,9 +528,9 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
 
     // first, do a couple of initial checks...
 
-    // first, get the mac status, and ensure that 1) we are not
-    // already joined, 2) the mac status is idle, 3) we have not
-    // been silenced, and 4) MAC has not been paused.
+    // get the mac status and ensure that 1) we are not already
+    // joined, 2) the mac status is idle, 3) we have not been
+    // silenced, and 4) MAC has not been paused.
 
     if (rn2903_update_mac_status(dev))
     {
@@ -551,10 +552,8 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
 
     // so far, so good... now build the command
 
-    const size_t cmdLen = 16;
-    char cmd[cmdLen] = {};
-
-    snprintf(cmd, cmdLen, "mac join %s",
+    char cmd[16] = {};
+    snprintf(cmd, 16, "mac join %s",
              (type == RN2903_JOIN_TYPE_OTAA) ? "otaa" : "abp");
 
     // now run the command.  We will get two responses back - one
@@ -566,11 +565,11 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
     RN2903_RESPONSE_T rv;
     if ((rv = rn2903_command(dev, cmd)))
     {
-        // a failure of some sort.  We've already screen for most of
+        // a failure of some sort.  We've already screened for most of
         // them, but there are a couple that we can't detect until we
         // try.
         printf("%s: join command failed (%d).\n", __FUNCTION__, rv);
-        return RN2903_JOIN_STqATUS_UPM_ERROR;
+        return RN2903_JOIN_STATUS_UPM_ERROR;
     }
 
     // if we are here, then we either got an "ok" or another error we
@@ -585,7 +584,8 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
     // ok, so now we wait for awhile for another response indicating
     // whether the join request was accepted or not
 
-    if ((rv = rn2903_response(dev, 60000)))
+    // FIXME - 60secs?
+    if ((rv = rn2903_waitfor_response(dev, 60000)))
     {
         printf("%s: join response failed (%d).\n", __FUNCTION__, rv);
         return RN2903_JOIN_STATUS_UPM_ERROR;

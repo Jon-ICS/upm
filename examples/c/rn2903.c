@@ -75,19 +75,19 @@ int main(int argc, char **argv)
 #if 1
 
     char *str = "Hi there big guy!";
-    char *hptr = rn2903_to_hex(sensor, str, strlen(str));
+    const char *hptr = rn2903_to_hex(sensor, str, strlen(str));
     printf("convert string (%s) to hex: '%s'\n", str, hptr);
-    char *dptr = rn2903_from_hex(sensor, hptr);
+    const char *dptr = rn2903_from_hex(sensor, hptr);
     printf("convert back to str: '%s'\n", dptr);
 
     int i = 12345;
-    char *iptr = rn2903_to_hex(sensor, &i, sizeof(int));
+    const char *iptr = rn2903_to_hex(sensor, &i, sizeof(int));
     printf("convert int (%d) to hex: '%s'\n", i, iptr);
     int *idptr = (int *)rn2903_from_hex(sensor, iptr);
     printf("convert back to int: '%d'\n", *idptr);
 
     float f = -12345.67;
-    char *fptr = rn2903_to_hex(sensor, &f, sizeof(float));
+    const char *fptr = rn2903_to_hex(sensor, &f, sizeof(float));
     printf("convert float (%f) to hex: '%s'\n", f, fptr);
     float *fdptr = (float *)rn2903_from_hex(sensor, fptr);
     printf("convert back to float: '%f'\n", *fdptr);
