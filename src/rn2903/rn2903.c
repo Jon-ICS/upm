@@ -46,6 +46,7 @@
 #undef _SHIFTMASK
 #define _SHIFTMASK(x) (_MASK(x) << _SHIFT(x))
 
+
 static bool validate_hex_str(const char *hex)
 {
     assert(hex != NULL);
@@ -322,7 +323,7 @@ RN2903_RESPONSE_T rn2903_waitfor_response(const rn2903_context dev,
 
     if (elapsed >= wait_ms)
         return RN2903_RESPONSE_TIMEOUT;
-    else if (rn2903_find(dev, dev->resp_data, RN2903_PHRASE_INV_PARAM))
+    else if (rn2903_find(dev, RN2903_PHRASE_INV_PARAM))
         return RN2903_RESPONSE_INVALID_PARAM;
     else
         return RN2903_RESPONSE_OK; // either data or "ok"
@@ -352,6 +353,23 @@ RN2903_RESPONSE_T rn2903_command(const rn2903_context dev, const char *cmd)
     }
 
     return rn2903_waitfor_response(dev, dev->cmd_resp_wait_ms);
+}
+
+RN2903_RESPONSE_T rn2903_command_with_arg(const rn2903_context dev,
+                                          const char *cmd, const char *arg)
+{
+    assert(dev != NULL);
+    assert(cmd != NULL);
+    assert(arg != NULL);
+
+    // cmd<space>arg<space>0-terminator
+    int buflen = strlen(cmd) + 1 + strlen(arg) + 1;
+    char buf[buflen];
+    memset(buf, 0, buflen);
+
+    snprintf(buf, buflen, "%s %s", cmd, arg);
+
+    return rn2903_command(dev, buf);
 }
 
 const char *rn2903_get_response(const rn2903_context dev)
@@ -407,7 +425,7 @@ const char *rn2903_to_hex(const rn2903_context dev, const void *src, int len)
 }
 
 const char *rn2903_from_hex(const rn2903_context dev,
-                      const void *src)
+                            const char *src)
 {
     assert(dev != NULL);
     assert(src != NULL);
@@ -426,7 +444,7 @@ const char *rn2903_from_hex(const rn2903_context dev,
     if (!validate_hex_str(src))
         return NULL;
 
-    // add a byte for 0 termination, just in case we're dealing with a
+    // add a byte for 0 termination, just in case we're decoding a
     // string
     int dlen = (len / 2) + 1;
 
@@ -438,14 +456,12 @@ const char *rn2903_from_hex(const rn2903_context dev,
     memset(dev->from_hex_buf, 0, dlen);
 
     char *dptr = dev->from_hex_buf;
-    char *sptr = (char *)src;
     for (int i=0; i<(dlen - 1); i++)
     {
-        char tbuf[3] = { sptr[i*2], sptr[(i*2)+1], 0 };
+        char tbuf[3] = { src[i*2], src[(i*2)+1], 0 };
         *dptr++ = (char)strtol(tbuf, NULL, 16);
     }
 
-    // the memset() will ensure the last byte is 0
     return dev->from_hex_buf;
 }
 
@@ -481,13 +497,13 @@ upm_result_t rn2903_update_mac_status(const rn2903_context dev)
         return UPM_ERROR_OPERATION_FAILED;
     }
 
-    // now play pointer games.  We should have 2 bytes (uint16_t)
-    // which we will stuff into our mac_status field in the context.
-    uint16_t status16 = *(uint16_t *)statPtr;
+    // now play pointer games.  We should have 2 bytes which we'll
+    // turn into a uint16_t (LE), which we will then stuff into our
+    // mac_status_word field in the context.
+    uint16_t status16 = (statPtr[0] << 8) | statPtr[1];
 
-    // now with that data, decode the mac_status_mac_status (no, I'm
-    // not stuttering) bitfield.  Then set our mac_status members
-    // accordingly.
+    // store the mac_status_word, then decode the actual mac_status
+    // (state) enumeration
 
     dev->mac_status_word = status16;
     dev->mac_mac_status =
@@ -518,6 +534,8 @@ upm_result_t rn2903_reset(const rn2903_context dev)
     if (rn2903_command(dev, "sys reset"))
         return UPM_ERROR_OPERATION_FAILED;
 
+    upm_delay_ms(100);
+
     return UPM_SUCCESS;
 }
 
@@ -538,17 +556,19 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
         return RN2903_JOIN_STATUS_UPM_ERROR;
     }
 
-    uint16_t status = rn2903_get_mac_status_word(dev);
+    // if the radio is not idle, we aren't going anywhere
     RN2903_MAC_STATUS_T mac_status = rn2903_get_mac_status(dev);
+    if (mac_status != RN2903_MAC_STAT_IDLE)
+        return RN2903_JOIN_STATUS_BUSY;
 
+    // now check the rest of the status bits...
+    uint16_t status = rn2903_get_mac_status_word(dev);
     if (status & RN2903_MAC_STATUS_JOINED)
         return RN2903_JOIN_STATUS_ALREADY_JOINED;
     else if (status & RN2903_MAC_STATUS_SILENT)
         return RN2903_JOIN_STATUS_SILENT;
     else if (status & RN2903_MAC_STATUS_PAUSED)
         return RN2903_JOIN_STATUS_MAC_PAUSED;
-    else if (mac_status != RN2903_MAC_STAT_IDLE)
-        return RN2903_JOIN_STATUS_BUSY;
 
     // so far, so good... now build the command
 
@@ -556,7 +576,7 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
     snprintf(cmd, 16, "mac join %s",
              (type == RN2903_JOIN_TYPE_OTAA) ? "otaa" : "abp");
 
-    // now run the command.  We will get two responses back - one
+    // run the command.  We will get two responses back - one
     // immediately if there is an error or if the join operation was
     // successfully submitted to the radio for transmission, and
     // another indicating whether the join was granted, or failed.
@@ -567,39 +587,36 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
     {
         // a failure of some sort.  We've already screened for most of
         // them, but there are a couple that we can't detect until we
-        // try.
+        // try (UPM).
         printf("%s: join command failed (%d).\n", __FUNCTION__, rv);
         return RN2903_JOIN_STATUS_UPM_ERROR;
     }
 
     // if we are here, then we either got an "ok" or another error we
-    // didn't screen for.
+    // couldn't screen for.  Check for them.
 
-    const char *resp = rn2903_get_response(dev);
-    if (rn2903_find(dev, resp, "no_free_ch"))
+    if (rn2903_find(dev, "no_free_ch"))
         return RN2903_JOIN_STATUS_NO_CHAN;
-    else if (rn2903_find(dev, resp, "keys_not_init"))
+    else if (rn2903_find(dev, "keys_not_init"))
         return RN2903_JOIN_STATUS_BAD_KEYS;
 
-    // ok, so now we wait for awhile for another response indicating
-    // whether the join request was accepted or not
+    // now we wait awhile for another response indicating whether the
+    // join request was accepted or not
 
-    // FIXME - 60secs?
+    // 60 secs long enough?
     if ((rv = rn2903_waitfor_response(dev, 60000)))
     {
-        printf("%s: join response failed (%d).\n", __FUNCTION__, rv);
+        printf("%s: join second response failed (%d).\n", __FUNCTION__, rv);
         return RN2903_JOIN_STATUS_UPM_ERROR;
     }
 
-    resp = rn2903_get_response(dev);
-    if (rn2903_find(dev, resp, "denied"))
+    if (rn2903_find(dev, "denied"))
         return RN2903_JOIN_STATUS_DENIED;
-    else if (rn2903_find(dev, resp, "accepted"))
+    else if (rn2903_find(dev, "accepted"))
         return RN2903_JOIN_STATUS_ACCEPTED;
 
-    // if it's anything else, we failed
-    printf("%s: unexpected response to join request (%s).\n",
-           __FUNCTION__, (rn2903_get_response_len(dev)) ? resp : "");
+    // if it's anything else, we failed :(
+    printf("%s: unexpected response to join request.\n", __FUNCTION__);
 
     return RN2903_JOIN_STATUS_UPM_ERROR;
 }
@@ -621,10 +638,6 @@ upm_result_t rn2903_set_flow_control(const rn2903_context dev,
         rv = mraa_uart_set_flowcontrol(dev->uart, false, true);
         break;
 
-    case RN2903_FLOW_CONTROL_SOFT:
-        rv = mraa_uart_set_flowcontrol(dev->uart, true, false);
-        break;
-
     default:
         return UPM_ERROR_INVALID_PARAMETER;
     }
@@ -635,12 +648,309 @@ upm_result_t rn2903_set_flow_control(const rn2903_context dev,
         return UPM_ERROR_OPERATION_FAILED;
 }
 
-bool rn2903_find(const rn2903_context dev, const char *buffer, const char *str)
+bool rn2903_find(const rn2903_context dev, const char *str)
 {
     assert(dev != NULL);
-    assert(buffer != NULL);
     assert(str != NULL);
 
-    return ((strstr(buffer, str)) ? true : false);
+    return ((strstr(dev->resp_data, str)) ? true : false);
+}
+
+upm_result_t rn2903_set_device_eui(const rn2903_context dev,
+                                   const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (16 bytes for the 8 byte EUI)
+
+    if (!validate_hex_str(str) || strlen(str) != 16)
+    {
+        printf("%s: invalid 16 byte device EUI hex string.\n", __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set deveui", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_get_device_eui(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac get deveui"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_set_application_eui(const rn2903_context dev,
+                                        const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (16 bytes for the 8 byte EUI)
+
+    if (!validate_hex_str(str) || strlen(str) != 16)
+    {
+        printf("%s: invalid 16 byte application EUI hex string.\n",
+               __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set appeui", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_get_application_eui(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac get appeui"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_set_application_key(const rn2903_context dev,
+                                        const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (32 bytes for the 16 byte key)
+
+    if (!validate_hex_str(str) || strlen(str) != 32)
+    {
+        printf("%s: invalid 32 byte application key hex string.\n",
+               __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set appkey", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_get_application_key(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac get appkey"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_set_device_addr(const rn2903_context dev,
+                                    const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (8 bytes for the 4 byte key)
+
+    if (!validate_hex_str(str) || strlen(str) != 8)
+    {
+        printf("%s: invalid 8 byte device addr hex string.\n",
+               __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set devaddr", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_get_device_addr(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac get devaddr"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_set_network_session_key(const rn2903_context dev,
+                                            const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (32 bytes for the 16 byte key)
+
+    if (!validate_hex_str(str) || strlen(str) != 32)
+    {
+        printf("%s: invalid 32 byte network session key hex string.\n",
+               __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set nwkskey", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_set_application_session_key(const rn2903_context dev,
+                                                const char *str)
+{
+    assert(dev != NULL);
+    assert(str != NULL);
+
+    // first verify that the string is a valid hex string of the right
+    // size (32 bytes for the 16 byte key)
+
+    if (!validate_hex_str(str) || strlen(str) != 32)
+    {
+        printf("%s: invalid 32 byte application session key hex string.\n",
+               __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    if (rn2903_command_with_arg(dev, "mac set appskey", str))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_mac_save(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac save"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_mac_pause(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac pause"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+upm_result_t rn2903_mac_resume(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    if (rn2903_command(dev, "mac resume"))
+        return UPM_ERROR_OPERATION_FAILED;
+
+    return UPM_SUCCESS;
+}
+
+RN2903_MAC_TX_STATUS_T rn2903_mac_tx(const rn2903_context dev,
+                                     RN2903_MAC_MSG_TYPE_T type,
+                                     int port, const char *payload)
+{
+    assert(dev != NULL);
+    assert(payload != NULL);
+
+    // check some things
+
+    // port can only be between 1 and 223
+    if (port < 1 || port > 223)
+    {
+        printf("%s: port must be between 1 and 223\n", __FUNCTION__);
+        return RN2903_MAC_TX_STATUS_UPM_ERROR;
+    }
+
+    // make sure payload is a valid hex string
+    if (!validate_hex_str(payload))
+    {
+        printf("%s: payload is not a valid hex string\n", __FUNCTION__);
+        return RN2903_MAC_TX_STATUS_UPM_ERROR;
+    }
+
+    // get the mac status and ensure that 1) we are joined to a
+    // LoRaWAN network, 2) the mac status is idle, 3) we have not been
+    // silenced, and 4) MAC has not been paused.
+
+    if (rn2903_update_mac_status(dev))
+    {
+        printf("%s: rn2903_update_mac_status() failed\n", __FUNCTION__);
+        return RN2903_MAC_TX_STATUS_UPM_ERROR;
+    }
+
+    // if the radio is not idle, we aren't going anywhere
+    RN2903_MAC_STATUS_T mac_status = rn2903_get_mac_status(dev);
+    if (mac_status != RN2903_MAC_STAT_IDLE)
+        return RN2903_MAC_TX_STATUS_BUSY;
+
+    // now check the rest of the status bits...
+    uint16_t status = rn2903_get_mac_status_word(dev);
+    if (!(status & RN2903_MAC_STATUS_JOINED))
+        return RN2903_MAC_TX_STATUS_NOT_JOINED;
+    else if (status & RN2903_MAC_STATUS_SILENT)
+        return RN2903_MAC_TX_STATUS_SILENT;
+    else if (status & RN2903_MAC_STATUS_PAUSED)
+        return RN2903_MAC_TX_STATUS_MAC_PAUSED;
+
+    // good so far, build and send the command.  Then we check for
+    // more things.
+
+    char cmd[32] = {};
+    snprintf(cmd, 32, "mac tx %s %d",
+             (type == RN2903_MAC_MSG_TYPE_CONFIRMED) ? "cnf" : "uncnf",
+             port);
+
+    RN2903_RESPONSE_T rv;
+    if ((rv = rn2903_command_with_arg(dev, cmd, payload)))
+    {
+        printf("%s: mac tx command failed (%d).\n", __FUNCTION__, rv);
+        return RN2903_MAC_TX_STATUS_UPM_ERROR;
+    }
+
+    // now check for some other things we couldn't check before
+    if (rn2903_find(dev, "no_free_ch"))
+        return RN2903_MAC_TX_STATUS_NO_CHAN;
+    else if (rn2903_find(dev, "frame_counter_err_rejoin_needed"))
+        return RN2903_MAC_TX_STATUS_FC_NEED_REJOIN;
+    else if (rn2903_find(dev, "invalid_data_len"))
+        return RN2903_MAC_TX_STATUS_BAD_DATA_LEN;
+
+    // now we wait for transmission to complete, and a possible
+    // downlink packet.
+
+    // is 60 secs long enough?
+    if ((rv = rn2903_waitfor_response(dev, 60000)))
+    {
+        printf("%s: mac tx second response failed (%d).\n", __FUNCTION__, rv);
+        return RN2903_MAC_TX_STATUS_UPM_ERROR;
+    }
+
+    if (rn2903_find(dev, "mac_tx_ok"))
+        return RN2903_MAC_TX_STATUS_TX_OK;
+    else if (rn2903_find(dev, "mac_err"))
+        return RN2903_MAC_TX_STATUS_MAC_ERR;
+    else if (rn2903_find(dev, "invalid_data_len"))
+        return RN2903_MAC_TX_STATUS_BAD_DATA_LEN;
+    else if (rn2903_find(dev, "mac_rx"))
+        return RN2903_MAC_TX_STATUS_RX_RECEIVED; // we got a downlink
+                                                 // packet in the
+                                                 // response buffer
+
+    // if it's anything else, we failed :(
+    printf("%s: unexpected response to mac tx command\n", __FUNCTION__);
+
+    return RN2903_JOIN_STATUS_UPM_ERROR;
 }
 

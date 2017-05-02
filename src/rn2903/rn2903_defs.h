@@ -106,8 +106,28 @@ extern "C" {
     typedef enum {
         RN2903_FLOW_CONTROL_NONE              = 0,
         RN2903_FLOW_CONTROL_HARD,          // hardware flow control
-        RN2903_FLOW_CONTROL_SOFT           // software flow control
     } RN2903_FLOW_CONTROL_T;
+
+    // MAC TX message types
+    typedef enum {
+        RN2903_MAC_MSG_TYPE_UNCONFIRMED       = 0,
+        RN2903_MAC_MSG_TYPE_CONFIRMED         = 1,
+    } RN2903_MAC_MSG_TYPE_T;
+
+    // MAC TX status
+    typedef enum {
+        RN2903_MAC_TX_STATUS_TX_OK            = 0, // tx was sent successfully
+        RN2903_MAC_TX_STATUS_NOT_JOINED       = 1,
+        RN2903_MAC_TX_STATUS_NO_CHAN          = 2,
+        RN2903_MAC_TX_STATUS_SILENT           = 3,
+        RN2903_MAC_TX_STATUS_FC_NEED_REJOIN   = 4, // frame counter overflow
+        RN2903_MAC_TX_STATUS_BUSY             = 5,
+        RN2903_MAC_TX_STATUS_MAC_PAUSED       = 6,
+        RN2903_MAC_TX_STATUS_BAD_DATA_LEN     = 7,
+        RN2903_MAC_TX_STATUS_RX_RECEIVED      = 8, // received a packet
+        RN2903_MAC_TX_STATUS_MAC_ERR          = 9, // error during tx
+        RN2903_MAC_TX_STATUS_UPM_ERROR        = 10, // error during tx
+    } RN2903_MAC_TX_STATUS_T;
 
     // last command status
     typedef enum {

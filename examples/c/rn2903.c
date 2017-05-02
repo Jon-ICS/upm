@@ -95,13 +95,39 @@ int main(int argc, char **argv)
 
     printf("\n\n");
 
+#if 0
     // for OTAA, need dev eui, app eui, app key
-    // for ABP, need dev addr, net session key, app session key
-
+    rn2903_set_device_eui(sensor, "0011223344556677");
+    rn2903_set_application_eui(sensor, "0011223344556677");
+    rn2903_set_application_key(sensor, "01234567012345670123456701234567");
     RN2903_JOIN_STATUS_T rv = rn2903_join(sensor, RN2903_JOIN_TYPE_OTAA);
     printf("JOIN: got rv %d\n", rv);
+#endif
 
+    // for ABP, need dev addr, net session key, app session key
 
+    rn2903_set_device_addr(sensor, "00112233");
+    rn2903_set_network_session_key(sensor, "00112233001122330011223300112233");
+    rn2903_set_application_session_key(sensor,
+                                       "00112233001122330011223300112233");
+    RN2903_JOIN_STATUS_T rv = rn2903_join(sensor, RN2903_JOIN_TYPE_ABP);
+    printf("JOIN: got rv %d\n", rv);
+
+    rn2903_update_mac_status(sensor);
+    printf("status %04x, mac_mac_status %d\n", sensor->mac_status_word,
+           sensor->mac_mac_status);
+
+    if (rn2903_get_mac_status_word(sensor) & RN2903_MAC_STATUS_JOINED)
+        printf("JOINED\n");
+    else
+        printf("NOT JOINED\n");
+
+    printf("Transmitting a packet.... \"AABBCCDDEEFF\"\n");
+
+    RN2903_MAC_TX_STATUS_T trv;
+    trv = rn2903_mac_tx(sensor, RN2903_MAC_MSG_TYPE_UNCONFIRMED,
+                        20, "AABBCCDDEEFF");
+    printf("MAC TX: got trv %d\n", trv);
 
 
     printf("Exiting\n");
