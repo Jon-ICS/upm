@@ -70,8 +70,8 @@ extern "C" {
         // submitted
         int                      cmd_resp2_wait_ms;
 
-        // if enabled, print all commands and responses
-        bool                     debug_cmd_resp;
+        // debugging output
+        bool                     debug;
 
         // our hardware hex encoded EUI + terminating NULL
         char                     hardware_eui[RN2903_MAX_HEX_EUI64 + 1];
@@ -453,6 +453,43 @@ extern "C" {
                                          int port, const char *payload);
 
     /**
+     * Transmit a packet.  This method uses the radio directly without
+     * the LoRaWAN stack running.  For this reason, you must call
+     * rn2903_mac_pause() before trying to transmit using this
+     * function.  You should also configure any parameters (frequency,
+     * etc), before calling this function.
+     *
+     * @param dev Device context
+     * @param payload A 0-terminated, hex encoded string that makes up
+     * the payload of the message
+     * @return The status of the transmit request, one of the
+     * RN2903_RESPONSE_T values
+     */
+    RN2903_RESPONSE_T rn2903_radio_tx(const rn2903_context dev,
+                                      const char *payload);
+
+    /**
+     * Receive a packet.  This method uses the radio directly without
+     * the LoRaWAN stack running.  For this reason, you must call
+     * rn2903_mac_pause() before trying to receive using this
+     * function.  You should also configure any parameters (frequency,
+     * etc) to match the transmitter before calling this function.
+     *
+     * @param dev Device context
+     * @param window_size An integer that represents the number of
+     * symbols to wait for (lora) or the maximum number of
+     * milliseconds to wait.  This parameter is passed to the "radio
+     * rx" command.  Passing 0 causes the radio to enter continuous
+     * receive mode which will return when either a packet is
+     * received, or the radio watchdog timer expires.  See the RN2903
+     * Command Reference for details.
+     * @return The status of the transmit request, one of the
+     * RN2903_RESPONSE_T values
+     */
+    RN2903_RESPONSE_T rn2903_radio_rx(const rn2903_context dev,
+                                      int window_size);
+
+    /**
      * Return the Hardware Extended Unique Identifier.  The is a 16
      * byte hex encoded string representing the 64b hardware EUI.
      * This value cannot be changed, and is globally unique to each
@@ -575,14 +612,15 @@ extern "C" {
     upm_result_t rn2903_mac_set_battery(const rn2903_context dev, int level);
 
     /**
-     * Enable command and response debugging.  If enabled, commands
-     * will be printed out before being sent to the device.  Any
-     * responses will be printed out after retrieval.
+     * Enable debugging.  If enabled, commands will be printed out
+     * before being sent to the device.  Any responses will be printed
+     * out after retrieval.  Other miscellaneous debug output will
+     * also be printed.
      *
      * @param dev Device context
      * @param enable true to enable debugging, false otherwise
      */
-    void rn2903_set_debug_cmd(const rn2903_context dev, bool enable);
+    void rn2903_set_debug(const rn2903_context dev, bool enable);
 
     /**
      * Read character data from the device
@@ -637,17 +675,18 @@ extern "C" {
 
     /**
      * This is a utility function that can be used to indicate if a
-     * given string is present in the response buffer.  The search is
-     * case sensitive.
+     * given string is present at the beginning of the response
+     * buffer.  The search is case sensitive.
      *
      * @param dev Device context
      * @param str The 0 teminated string to search for
-     * @return true if the string was found, false otherwise
+     * @return true if the string was found at the beginning of the
+     * response bufer, false otherwise
      */
     bool rn2903_find(const rn2903_context dev,
                      const char *str);
 
-    bool rn2903_autobaud(const rn2903_context dev);
+    bool rn2903_autobaud(const rn2903_context dev, int retries);
 
 #ifdef __cplusplus
 }

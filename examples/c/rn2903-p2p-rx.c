@@ -25,10 +25,19 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include "rn2903.h"
 #include "upm_utilities.h"
 #include "upm_platform.h"
+
+int shouldRun = true;
+
+void sig_handler(int signo)
+{
+    if (signo == SIGINT)
+        shouldRun = false;
+}
 
 #if defined(UPM_PLATFORM_ZEPHYR) && !defined(CONFIG_STDOUT_CONSOLE)
 # define printf printk
@@ -58,7 +67,7 @@ int main(int argc, char **argv)
     // tty path.
     //
     //        rn2903_context sensor = rn2903_init(0,
-    //                                        RN2903_DEFAULT_BAUDRATE);
+    //                                            RN2903_DEFAULT_BAUDRATE);
 
     if (!sensor)
     {
@@ -80,69 +89,37 @@ int main(int argc, char **argv)
 
     printf("Hardware EUI: %s\n", rn2903_get_hardware_eui(sensor));
 
-    // we can support two types of join, OTAA and ABP. Each requires
-    // that certain parameters be set first.  We will only attempt ABP
-    // joining with this example since it's the only one that can
-    // succeed without actual configuration.  In both cases, if you
-    // are actually attempting to join a real LoRaWAN network, you
-    // must change the parameters below to match the network you are
-    // attempting to join.
+    // For this example, we will just try to receive a packet
+    // transmitted by the p2p-tx rn2903 example.  We reset the
+    // device to defaults, and we do not make any adjustments to the
+    // radio configuration.  You will probably want to do so for a
+    // real life application.
 
-    // For OTAA, you need to supply valid Device EUI, Application EUI,
-    // and Application key:
-    //
-    // rn2903_set_device_eui(sensor, "0011223344556677");
-    // rn2903_set_application_eui(sensor, "0011223344556677");
-    // rn2903_set_application_key(sensor, "01234567012345670123456701234567");
-    //
-    // RN2903_JOIN_STATUS_T rv = rn2903_join(sensor, RN2903_JOIN_TYPE_OTAA);
-    // A successful join will return RN2903_JOIN_STATUS_ACCEPTED (0).
-    // printf("JOIN: got rv %d\n", rv);
-
-    // Try an ABP join.  Note, these parameters are made up.  For a
-    // real network, you will want to use the correct values
-    // obviously.  For an ABP join, you need to supply the Device
-    // Address, Network Session Key, and the Application Session Key.
-
-    rn2903_set_device_addr(sensor, "00112233");
-    rn2903_set_network_session_key(sensor, "00112233001122330011223300112233");
-    rn2903_set_application_session_key(sensor,
-                                       "00112233001122330011223300112233");
-    RN2903_JOIN_STATUS_T rv = rn2903_join(sensor, RN2903_JOIN_TYPE_ABP);
-    if (rv == RN2903_JOIN_STATUS_ACCEPTED)
+    // The first thing to do is to suspend the LoRaWAN stack on the device.
+    if (rn2903_mac_pause(sensor))
     {
-        printf("Join successful.\n");
+        printf("Failed to pause the LoRaWAN stack\n");
+        rn2903_close(sensor);
+        return 1;
+    }
 
-        // All transmit payloads must be hex encoded strings, so
-        // pretend we have a temperature sensor that gave us a value
-        // of 25.6 C, and we want to transmit it.
-        const char *faketemp = "25.6";
-        printf("Transmitting a packet....\n");
-
-        RN2903_MAC_TX_STATUS_T trv;
-        trv = rn2903_mac_tx(sensor, RN2903_MAC_MSG_TYPE_UNCONFIRMED,
-                            1, // port number
-                            rn2903_to_hex(sensor, faketemp, strlen(faketemp)));
-
-        if (trv == RN2903_MAC_TX_STATUS_TX_OK)
-            printf("Transmit successful.\n");
+    // We will use continuous mode (window_size 0), though the default
+    // radio watch dog time will expire every 15 seconds.  We will
+    // just loop here.
+    while (shouldRun)
+    {
+        RN2903_RESPONSE_T rv;
+        rv = rn2903_radio_rx(sensor, 0);
+        if (rv)
+        {
+            printf("rn2903_radio_rx() failed with code (%d)\n", rv);
+        }
         else
         {
-            // check to see if we got a downlink packet
-            if (trv == RN2903_MAC_TX_STATUS_RX_RECEIVED)
-            {
-                printf("Transmit successful, downlink packet received: %s\n",
-                       rn2903_get_response(sensor));
-            }
-            else
-            {
-                printf("Transmit failed with code %d.\n", trv);
-            }
+            printf("Got response: '%s'\n", rn2903_get_response(sensor));
         }
-    }
-    else
-    {
-        printf("Join failed with code %d.\n", rv);
+
+        printf("\n");
     }
 
     printf("Exiting\n");
