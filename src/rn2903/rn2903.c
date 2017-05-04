@@ -29,12 +29,15 @@
 #include "rn2903.h"
 
 #include "upm_utilities.h"
+#include "upm_platform.h"
 
 // milliseconds
-#define RN2903_MAX_WAIT   (1000)
+#define RN2903_DEFAULT_RESP_DELAY   (1000)   // 1 second
+#define RN2903_DEFAULT_RESP2_DELAY  (60000)  // 60 seconds
 
-// milliseconds
-#define RN2903_DEFAULT_RESP_DELAY   (250)
+// we use small buffers of this size to build certain compound
+// commands
+#define RN2903_CMD_BUFFER_32B       (32) // 32 bytes
 
 // some useful macros to save on typing and text wrapping
 #undef _SHIFT
@@ -92,8 +95,15 @@ static rn2903_context _rn2903_preinit()
     // zero out context
     memset((void *)dev, 0, sizeof(struct _rn2903_context));
 
+    // first response wait time
     dev->cmd_resp_wait_ms = RN2903_DEFAULT_RESP_DELAY;
+    // optional second response wait time
+    dev->cmd_resp2_wait_ms = RN2903_DEFAULT_RESP2_DELAY;
 
+    // init stored baudrate to RN2903_DEFAULT_BAUDRATE
+    dev->baudrate = RN2903_DEFAULT_BAUDRATE;
+    // FIXME
+    dev->debug_cmd_resp = true;
     return dev;
 }
 
@@ -118,10 +128,6 @@ static rn2903_context _rn2903_postinit(rn2903_context dev,
 
     // turn off debugging
     rn2903_set_debug_cmd(dev, false);
-
-    // send an initial command, which will always fail the first time
-    // (invalid_param)
-    rn2903_command(dev, "sys get ver");
 
     // reset the device
     if (rn2903_reset(dev))
@@ -161,6 +167,7 @@ rn2903_context rn2903_init(unsigned int uart, unsigned int baudrate)
         return NULL;
     }
 
+    printf("MRAA port: %s\n", mraa_uart_get_dev_path(dev->uart));
     return _rn2903_postinit(dev, baudrate);
 }
 
@@ -239,6 +246,22 @@ upm_result_t rn2903_set_baudrate(const rn2903_context dev,
         return UPM_ERROR_OPERATION_FAILED;
     }
 
+    int retries = 10;
+    do
+    {
+        if (rn2903_autobaud(dev))
+        {
+//FIXME
+            printf("RETRIES %d: success!\n", retries);
+            break;
+        }
+
+//FIXME
+        printf("RETRIES %d: FAIL\n", retries);
+        upm_delay_ms(200);
+    } while (retries-- > 0);
+
+    dev->baudrate = baudrate;
     return UPM_SUCCESS;
 }
 
@@ -255,6 +278,14 @@ void rn2903_set_response_wait_time(const rn2903_context dev,
     assert(dev != NULL);
 
     dev->cmd_resp_wait_ms = wait_time;
+}
+
+void rn2903_set_response2_wait_time(const rn2903_context dev,
+                                    unsigned int wait_time)
+{
+    assert(dev != NULL);
+
+    dev->cmd_resp2_wait_ms = wait_time;
 }
 
 void rn2903_drain(const rn2903_context dev)
@@ -318,9 +349,10 @@ RN2903_RESPONSE_T rn2903_waitfor_response(const rn2903_context dev,
     } while ( (elapsed = upm_elapsed_ms(&clock)) < wait_ms);
 
     if (dev->debug_cmd_resp)
-        printf("\tRESP (%ld): '%s'\n", dev->resp_len,
+        printf("\tRESP (%d): '%s'\n", (int)dev->resp_len,
                (dev->resp_len) ? dev->resp_data : "");
 
+    // check for and return obvious errors
     if (elapsed >= wait_ms)
         return RN2903_RESPONSE_TIMEOUT;
     else if (rn2903_find(dev, RN2903_PHRASE_INV_PARAM))
@@ -531,7 +563,21 @@ upm_result_t rn2903_reset(const rn2903_context dev)
 {
     assert(dev != NULL);
 
+//FIXME
+    printf("RESET.............\n");
     if (rn2903_command(dev, "sys reset"))
+    {
+        // this command will reset the baudrate back to the default if
+        // we changed it previously.  We do not report an error here,
+        // if we are not using the default baudrate, since we've now
+        // switched to a different baudrate than we had, and cannot
+        // read the response anyway.
+        if (dev->baudrate == RN2903_DEFAULT_BAUDRATE)
+            return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    // to be safe, always set the baudrate after a reset
+    if (rn2903_set_baudrate(dev, dev->baudrate))
         return UPM_ERROR_OPERATION_FAILED;
 
     upm_delay_ms(100);
@@ -572,8 +618,8 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
 
     // so far, so good... now build the command
 
-    char cmd[16] = {};
-    snprintf(cmd, 16, "mac join %s",
+    char cmd[RN2903_CMD_BUFFER_32B] = {};
+    snprintf(cmd, RN2903_CMD_BUFFER_32B, "mac join %s",
              (type == RN2903_JOIN_TYPE_OTAA) ? "otaa" : "abp");
 
     // run the command.  We will get two responses back - one
@@ -603,8 +649,7 @@ RN2903_JOIN_STATUS_T rn2903_join(const rn2903_context dev,
     // now we wait awhile for another response indicating whether the
     // join request was accepted or not
 
-    // 60 secs long enough?
-    if ((rv = rn2903_waitfor_response(dev, 60000)))
+    if ((rv = rn2903_waitfor_response(dev, RN2903_DEFAULT_RESP2_DELAY)))
     {
         printf("%s: join second response failed (%d).\n", __FUNCTION__, rv);
         return RN2903_JOIN_STATUS_UPM_ERROR;
@@ -907,8 +952,8 @@ RN2903_MAC_TX_STATUS_T rn2903_mac_tx(const rn2903_context dev,
     // good so far, build and send the command.  Then we check for
     // more things.
 
-    char cmd[32] = {};
-    snprintf(cmd, 32, "mac tx %s %d",
+    char cmd[RN2903_CMD_BUFFER_32B] = {};
+    snprintf(cmd, RN2903_CMD_BUFFER_32B, "mac tx %s %d",
              (type == RN2903_MAC_MSG_TYPE_CONFIRMED) ? "cnf" : "uncnf",
              port);
 
@@ -930,8 +975,7 @@ RN2903_MAC_TX_STATUS_T rn2903_mac_tx(const rn2903_context dev,
     // now we wait for transmission to complete, and a possible
     // downlink packet.
 
-    // is 60 secs long enough?
-    if ((rv = rn2903_waitfor_response(dev, 60000)))
+    if ((rv = rn2903_waitfor_response(dev, RN2903_DEFAULT_RESP2_DELAY)))
     {
         printf("%s: mac tx second response failed (%d).\n", __FUNCTION__, rv);
         return RN2903_MAC_TX_STATUS_UPM_ERROR;
@@ -954,3 +998,61 @@ RN2903_MAC_TX_STATUS_T rn2903_mac_tx(const rn2903_context dev,
     return RN2903_JOIN_STATUS_UPM_ERROR;
 }
 
+upm_result_t rn2903_mac_set_battery(const rn2903_context dev, int level)
+{
+    assert(dev != NULL);
+
+    if (level < 0 || level > 255)
+    {
+        printf("%s: level must be between 0 and 255\n", __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    char cmd[RN2903_CMD_BUFFER_32B] = {};
+    snprintf(cmd, RN2903_CMD_BUFFER_32B, "mac set bat %d", level);
+
+    RN2903_RESPONSE_T rv;
+    if ((rv = rn2903_command(dev, cmd)))
+    {
+        printf("%s: mac tx command failed (%d).\n", __FUNCTION__, rv);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    return UPM_SUCCESS;
+}
+
+bool rn2903_autobaud(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+#if defined(UPM_PLATFORM_LINUX)
+    // FIXME
+    printf("AUTOBAUDING........\n");
+
+    // trigger rn2903 auto-baud detection
+
+    // send a break signal, then a 0x55, then try a command
+    if (mraa_uart_sendbreak(dev->uart, 0))
+    {
+        printf("%s: mraa_uart_sendbreak() failed.\n", __FUNCTION__);
+        return UPM_ERROR_OPERATION_FAILED;
+    }
+
+    upm_delay_ms(100);
+
+    char buf = 0x55;
+    rn2903_write(dev, &buf, 1);
+
+    upm_delay_ms(100);
+
+    // try a new command to verify new speed
+    if (rn2903_command(dev, "sys get ver"))
+    {
+        // FIXME
+        printf("autobaud test failed\n");
+        return false;
+    }
+#endif
+
+    return true;
+}

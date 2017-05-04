@@ -49,8 +49,10 @@ extern "C" {
      */
     typedef struct _rn2903_context {
         mraa_uart_context        uart;
+        // store the baudrate
+        int                      baudrate;
 
-        // contents of last command response, stripped of CR/LF
+        // response data buffer, stripped of CR/LF
         char                     resp_data[RN2903_MAX_BUFFER];
         // length of response data
         size_t                   resp_len;
@@ -63,6 +65,10 @@ extern "C" {
         // maximum time to wait for a response after a command is
         // submitted
         int                      cmd_resp_wait_ms;
+
+        // maximum time to wait for a second response after a command is
+        // submitted
+        int                      cmd_resp2_wait_ms;
 
         // if enabled, print all commands and responses
         bool                     debug_cmd_resp;
@@ -106,15 +112,28 @@ extern "C" {
     void rn2903_close(rn2903_context dev);
 
     /**
-     * Set the default time, in milliseconds, to wait for data to
-     * arrive after sending a command.  Every command will be followed
-     * by at least one response.
+     * Set the default time, in milliseconds, to wait for a response
+     * after sending a command.  All commands return at least one
+     * response immediately after issuing the command.  This delay
+     * sets the maximum amount of time to wait for it.
      *
      * @param dev Device context
      * @param wait_ms The response delay to set, in milliseconds.
      */
     void rn2903_set_response_wait_time(const rn2903_context dev,
                                        unsigned int wait_ms);
+
+    /**
+     * Set the default time, in milliseconds, to wait for the second
+     * response data to arrive.  Some commands will have a second
+     * response emitted after the first response.  This delay sets the
+     * maximum amount of time to wait for it.
+     *
+     * @param dev Device context
+     * @param wait_ms The response delay to set, in milliseconds.
+     */
+    void rn2903_set_response2_wait_time(const rn2903_context dev,
+                                        unsigned int wait_ms);
 
     /**
      * Determine whether there is data available to be read.  This
@@ -171,10 +190,21 @@ extern "C" {
                                               const char *arg);
 
     /**
-     * Wait up to wait_ms milliseconds for a response.  In the case of
-     * errors, this will be indicated by the return value.  The
-     * response itself will be stored internally, and can be retrieved
-     * using rm2903_get_response() and rn2903_get_response_len().
+     * Wait up to wait_ms milliseconds for a response.
+     *
+     * In the case of errors ("invalid_param" received, timeout
+     * occurred, or other UPM specific error), this will be indicated
+     * by the return value.
+     *
+     * Otherwise, an "ok" or other data value will not be considered
+     * an error and will return RN2903_RESPONSE_OK.  The response
+     * itself will be stored internally, and can be retrieved using
+     * rm2903_get_response() and rn2903_get_response_len().
+     *
+     * NOTE: the response buffer is overwritten whenever this function
+     * is called, so if there is data in there that you need to save,
+     * copy it somewhere else before calling any other functions in
+     * this driver to be safe.
      *
      * @param dev Device context
      * @param wait_ms The maximum number of milliseconds to wait for a
@@ -190,7 +220,7 @@ extern "C" {
      * it somewhere before calling rn2903_command(),
      * rn2903_command_with_arg() or rn2903_waitfor_response(), as
      * these functions will overwrite the internally stored response
-     * each time they are called.
+     * buffer each time they are called.
      *
      * @param dev Device context
      * @return A const pointer to a string containing the last response.
@@ -340,8 +370,9 @@ extern "C" {
      * Convert src into a hex byte string.  All non-command related
      * data such as keys, and payload sent to the device must be hex
      * encoded.  The buffers used for this conversion are managed
-     * internally.  If you need to keep a copy of the resulting hex
-     * string, copy it somewhere before calling this function again.
+     * internally, so do not call free() on the returned pointer.  If
+     * you need to keep a copy of the resulting hex string, copy it
+     * somewhere before calling this function again.
      *
      * @param dev Device context
      * @param src A void pointer pointing to the byte array to encode
@@ -357,11 +388,12 @@ extern "C" {
      * string must have a length (not including the 0 terminator) that
      * is a multiple of two, and all characters in the string must be
      * valid hex characters.  The buffers used for this conversion are
-     * managed internally.  If you need to keep a copy of the
-     * resulting data byte array, copy it somewhere before calling
-     * this function again.  The length of the returned data will be
-     * the length of the hex source string divided by 2, with a 0 byte
-     * terminator at the end in case a text string is being decoded.
+     * managed internally, so do not call free() on the returned
+     * pointer.  If you need to keep a copy of the resulting data byte
+     * array, copy it somewhere before calling this function again.
+     * The length of the returned data will be the length of the hex
+     * source string divided by 2, with a 0 byte terminator at the end
+     * in case a text string is being decoded.
      *
      * @param dev Device context
      * @return A const pointer to the resulting data string, or NULL if
@@ -402,20 +434,19 @@ extern "C" {
      * There is the possibility of receiving a downlink message after
      * transmitting a packet.  If this occurs, this function will
      * return RN2903_MAC_TX_STATUS_RX_RECEIVED, and the returned data
-     * will be stored in the response buffer.  
-     *
-     * NOTE: calling pretty much any function that issues commands to
-     * the device will overwrite this buffer, so save a copy of it if
-     * you need it before calling other functions.
+     * will be stored in the response buffer.  NOTE: calling pretty
+     * much any function that issues commands to the device will
+     * overwrite the response buffer, so save a copy of it if you need
+     * it before calling other functions.
      *
      * @param dev Device context
      * @param type The type of message to send - confirmed or
      * unconfirmed.  One of the RN2903_MAC_MSG_TYPE_T values.
-     * @param port An integeter in the range 1-223
-     * @param payload A hex encoded string that makes up the mayload of
-     * the message
-     * @return The status of the join, one of the RN2903_JOIN_STATUS_T
-     * values
+     * @param port An integer in the range 1-223
+     * @param payload A 0-terminated, hex encoded string that makes up
+     * the payload of the message
+     * @return The status of the transmit request, one of the
+     * RN2903_MAC_TX_STATUS_T values
      */
     RN2903_MAC_TX_STATUS_T rn2903_mac_tx(const rn2903_context dev,
                                          RN2903_MAC_MSG_TYPE_T type,
@@ -424,8 +455,8 @@ extern "C" {
     /**
      * Return the Hardware Extended Unique Identifier.  The is a 16
      * byte hex encoded string representing the 64b hardware EUI.
-     * This value cannot be changed, and is unique to each device.  It
-     * is obtained from the device at initialization time.
+     * This value cannot be changed, and is globally unique to each
+     * device.  It is obtained from the device at initialization time.
      *
      * @param dev Device context
      * @return A const string pointer to the hex encoded Hardware EUI
@@ -486,7 +517,7 @@ extern "C" {
      * LoRaWAN stack on the device dealing with the details of
      * LoRaWAN participation automatically.
      *
-     * The other mode, disables MAC LoRaWAN stack functionality and
+     * The other mode disables MAC LoRaWAN stack functionality and
      * allows you to issue commands directly to the radio to set
      * frequencies, data rates, modulation and many other parameters.
      *
@@ -527,6 +558,23 @@ extern "C" {
     upm_result_t rn2903_reset(const rn2903_context dev);
 
     /**
+     * LoRaWAN communications allows for the reporting of current
+     * battery charge remaining to the LoRaWAN gateway/network server.
+     * This function allows you to specify the value that should be
+     * reported.
+     *
+     * The valid values are from 0 to 255.
+     * 0 = using external power
+     * 1(low) to 254(high) = battery power
+     * 255 = unable to measure battery level
+     *
+     * @param dev Device context
+     * @param level The battery level value from 0-255
+     * @return UPM result
+     */
+    upm_result_t rn2903_mac_set_battery(const rn2903_context dev, int level);
+
+    /**
      * Enable command and response debugging.  If enabled, commands
      * will be printed out before being sent to the device.  Any
      * responses will be printed out after retrieval.
@@ -537,10 +585,10 @@ extern "C" {
     void rn2903_set_debug_cmd(const rn2903_context dev, bool enable);
 
     /**
-     * Read character data from the device.
+     * Read character data from the device
      *
      * @param dev Device context
-     * @param buffer The character buffer to read data into.
+     * @param buffer The character buffer to read data into
      * @param len The maximum size of the buffer
      * @return The number of bytes successfully read, or -1 on error
      */
@@ -557,10 +605,12 @@ extern "C" {
     int rn2903_write(const rn2903_context dev, const char *buffer, size_t len);
 
     /**
-     * Set the baudrate of the device.  MRAA cannot currently send
-     * breaks, which is required for auto baud, so this function will
-     * likely only work if set to the same baud rate as the device,
-     * which by default is 57600.
+     * Set the baudrate of the device.  Auto-bauding is currently only
+     * supported on Linux (due to the need to send a break signal) and
+     * only on a recent MRAA which supports it (> 1.6.1).  If on a
+     * non-linux OS, you should not try to change the baudrate to
+     * anything other than the default 57600 or you will lose control
+     * of the device.
      *
      * @param dev Device context
      * @param baudrate The baud rate to set for the device
@@ -575,8 +625,8 @@ extern "C" {
      * support hardware flow control, but MRAA does not (at least for
      * UART numbers), so we can't either.  We leave the option here
      * though so that if you are using a TTY (as opposed to a UART
-     * instance) it might work if the device is also using hardware
-     * flow control.
+     * instance) it might work if the device is also configured to use
+     * hardware flow control.
      *
      * @param dev Device context
      * @param fc One of the RN2903_FLOW_CONTROL_T values
@@ -596,6 +646,8 @@ extern "C" {
      */
     bool rn2903_find(const rn2903_context dev,
                      const char *str);
+
+    bool rn2903_autobaud(const rn2903_context dev);
 
 #ifdef __cplusplus
 }

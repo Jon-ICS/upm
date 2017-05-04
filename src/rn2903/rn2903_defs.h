@@ -34,6 +34,8 @@ extern "C" {
 // size of hex encoded 64b EUI (IPV6 Extended Unique Identifier)
 #define RN2903_MAX_HEX_EUI64  (16) 
 
+// default baudrate
+#define RN2903_DEFAULT_BAUDRATE 57600
 
     // This byte sequence must follow all commands.  All responses
     // will also be followed by these bytes (\r\n - CR LF).

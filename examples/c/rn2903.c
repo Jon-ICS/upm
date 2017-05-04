@@ -39,7 +39,12 @@ int main(int argc, char **argv)
 
     printf("Using device: %s\n", defaultDev);
     // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
-    rn2903_context sensor = rn2903_init_tty(defaultDev, 57600);
+//    rn2903_context sensor = rn2903_init_tty(defaultDev,
+//                                            RN2903_DEFAULT_BAUDRATE);
+    rn2903_context sensor = rn2903_init(0,
+//                                        2400);
+//                                        RN2903_DEFAULT_BAUDRATE);
+                                        9600);
 
     if (!sensor)
     {
@@ -62,17 +67,20 @@ int main(int argc, char **argv)
     printf("Hardware EUI: %s\n", rn2903_get_hardware_eui(sensor));
 
 
-#if 1
+#if 0
     rn2903_command(sensor, "sys get vdd");
 #endif
 
     rn2903_update_mac_status(sensor);
-    printf("status %04x, mac_mac_status %d\n", sensor->mac_status_word,
+    printf("status_word %04x, mac_mac_status %d\n", sensor->mac_status_word,
            sensor->mac_mac_status);
 
+    // set the battery level to 0 (external power)
+    if (rn2903_mac_set_battery(sensor, 0))
+        printf("rn2903_mac_set_battery() failed\n");
 
 // test some conversions...
-#if 1
+#if 0
 
     char *str = "Hi there big guy!";
     const char *hptr = rn2903_to_hex(sensor, str, strlen(str));
@@ -104,6 +112,7 @@ int main(int argc, char **argv)
     printf("JOIN: got rv %d\n", rv);
 #endif
 
+# if 1
     // for ABP, need dev addr, net session key, app session key
 
     rn2903_set_device_addr(sensor, "00112233");
@@ -128,7 +137,7 @@ int main(int argc, char **argv)
     trv = rn2903_mac_tx(sensor, RN2903_MAC_MSG_TYPE_UNCONFIRMED,
                         20, "AABBCCDDEEFF");
     printf("MAC TX: got trv %d\n", trv);
-
+#endif
 
     printf("Exiting\n");
 
