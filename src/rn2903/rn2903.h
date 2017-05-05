@@ -375,13 +375,13 @@ extern "C" {
      * somewhere before calling this function again.
      *
      * @param dev Device context
-     * @param src A void pointer pointing to the byte array to encode
+     * @param src A char pointer pointing to the byte array to encode
      * @param len The length in bytes of the data to encode
      * @return A const pointer to the resulting hex string, or NULL if
      * there was an error.
      */
     const char *rn2903_to_hex(const rn2903_context dev,
-                              const void *src, int len);
+                              const char *src, int len);
 
     /**
      * Convert a hex byte string into an array of bytes.  The hex
@@ -403,13 +403,13 @@ extern "C" {
                                 const char *src);
 
     /**
-     * Join a LoRaWAN network.  There are two type of joins possible -
-     * Over The Air Activation (OTAA) and Activation by
+     * Join a LoRaWAN network.  There are two types of joins possible
+     * - Over The Air Activation (OTAA) and Activation by
      * Personalization (ABP).  Each join method requires that certain
      * items have been configured first.
      *
      * For OTAA activation, the Device Extended Unique Identifier
-     * (EUI), the application EUI, and application key must be set.
+     * (EUI), the Application EUI, and Application Key must be set.
      *
      * For ABP activation, The Device Address, Network Session Key,
      * and the Application Session Key must be set.
@@ -429,7 +429,8 @@ extern "C" {
      * succeed, and the MAC stack must be in the idle
      * (RN2903_MAC_STAT_IDLE) state.
      *
-     * The packet payload must a 0-terminated hex encoded string.
+     * The packet payload must be a valid 0-terminated hex encoded
+     * string.
      *
      * There is the possibility of receiving a downlink message after
      * transmitting a packet.  If this occurs, this function will
@@ -478,7 +479,7 @@ extern "C" {
      * @param dev Device context
      * @param window_size An integer that represents the number of
      * symbols to wait for (lora) or the maximum number of
-     * milliseconds to wait.  This parameter is passed to the "radio
+     * milliseconds to wait (fsk).  This parameter is passed to the "radio
      * rx" command.  Passing 0 causes the radio to enter continuous
      * receive mode which will return when either a packet is
      * received, or the radio watchdog timer expires.  See the RN2903
@@ -503,7 +504,7 @@ extern "C" {
     /**
      * Retrieve the device MAC status, decode it, and store it
      * internally.  This function must be called prior to calling
-     * rn2903_get_max_status_word() or rn2903_get_mac_status().
+     * rn2903_get_mac_status_word() or rn2903_get_mac_status().
      *
      * @param dev Device context
      * @return UPM result
@@ -527,7 +528,7 @@ extern "C" {
      * information on the status of the internal MAC state machine.
      *
      * @param dev Device context
-     * @return The MAC status.  One of the RN2903_MAC_STATUS_T values.
+     * @return The MAC status, one of the RN2903_MAC_STATUS_T values.
      */
     RN2903_MAC_STATUS_T rn2903_get_mac_status(const rn2903_context dev);
 
@@ -535,7 +536,7 @@ extern "C" {
      * Save the configurable device values to EEPROM.  These values
      * will be reloaded automatically on a reset or power up.
      *
-     * The data that can be saved is: deveui, appeui, appkey, nwkskey
+     * The data that can be saved are: deveui, appeui, appkey, nwkskey
      * (Network Session Key), appskey, devaddr, channels, upctr
      * (Uplink Counter), dnctr (Downlink Counter), adr (automatic
      * data-rate) state, and rx2 (the RX2 receive window parameters).
@@ -586,8 +587,12 @@ extern "C" {
     upm_result_t rn2903_mac_resume(const rn2903_context dev);
 
     /**
-     * Reset the device.  Any configuration is lost, as well as the
-     * current join status.
+     * Reset the device.  Any configuration is lost, as well as
+     * the current join status.  This method also calls
+     * rn2903_set_baudrate() after the reset to re-establish
+     * communications with the device in the event you are not
+     * using the default baudrate (which the device will revert to
+     * after a reset).
      *
      * @param dev Device context
      * @return UPM result
@@ -681,10 +686,9 @@ extern "C" {
      * @param dev Device context
      * @param str The 0 teminated string to search for
      * @return true if the string was found at the beginning of the
-     * response bufer, false otherwise
+     * response buffer, false otherwise
      */
-    bool rn2903_find(const rn2903_context dev,
-                     const char *str);
+    bool rn2903_find(const rn2903_context dev, const char *str);
 
     /**
      * This is a utility function that can be used to return a pointer
@@ -705,8 +709,7 @@ extern "C" {
      *
      * @param dev Device context
      * @param retries The number of times to retry autobaud detection
-     * @return true if the string was found at the beginning of the
-     * response bufer, false otherwise
+     * @return true if the test command succeeded, false otherwise
      */
     bool rn2903_autobaud(const rn2903_context dev, int retries);
 

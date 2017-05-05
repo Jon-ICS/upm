@@ -1,9 +1,9 @@
-%module jsupm_uartat
+%module jsupm_rn2903
 %include "../upm.i"
 %include "std_string.i"
 
-%include "uartat_defs.h"
-%include "uartat.hpp"
+%include "rn2903_defs.h"
+%include "rn2903.hpp"
 %{
-    #include "uartat.hpp"
+    #include "rn2903.hpp"
 %}

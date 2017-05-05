@@ -26,148 +26,282 @@
 #include <stdexcept>
 #include <string.h>
 
-#include "uartat.hpp"
+#include "rn2903.hpp"
 
 using namespace upm;
 using namespace std;
 
-UARTAT::UARTAT(unsigned int uart, unsigned int baudrate) :
-    m_uartat(uartat_init(uart, baudrate))
+RN2903::RN2903(unsigned int uart, unsigned int baudrate) :
+    m_rn2903(rn2903_init(uart, baudrate))
 {
-    if (!m_uartat)
+    if (!m_rn2903)
         throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_init() failed");
+                                 + ": rn2903_init() failed");
 }
 
-UARTAT::UARTAT(string uart_path, unsigned int baudrate) :
-    m_uartat(uartat_init_tty(uart_path.c_str(), baudrate))
+RN2903::RN2903(string uart_path, unsigned int baudrate) :
+    m_rn2903(rn2903_init_tty(uart_path.c_str(), baudrate))
 {
-    if (!m_uartat)
+    if (!m_rn2903)
         throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_init_tty() failed");
+                                 + ": rn2903_init_tty() failed");
 }
 
-UARTAT::~UARTAT()
+RN2903::~RN2903()
 {
-    uartat_close(m_uartat);
+    rn2903_close(m_rn2903);
 }
 
-std::string UARTAT::readStr(size_t size)
+std::string RN2903::read(int size)
 {
     char buffer[size];
 
     int rv;
 
-    if ((rv = uartat_read(m_uartat, buffer, size)) < 0)
+    if ((rv = rn2903_read(m_rn2903, buffer, (size_t)size)) < 0)
         throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_read() failed");
+                                 + ": rn2903_read() failed");
 
     return string(buffer, rv);
 }
 
-int UARTAT::writeStr(std::string buffer)
+int RN2903::write(std::string buffer)
 {
     int rv;
 
-    if ((rv = uartat_write(m_uartat, (char*)buffer.data(),
+    if ((rv = rn2903_write(m_rn2903, (char*)buffer.data(),
                            buffer.size())) < 0)
         throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_write() failed");
+                                 + ": rn2903_write() failed");
 
     return rv;
 }
 
-void UARTAT::setBaudrate(unsigned int baudrate)
+void RN2903::setResponseWaitTime(unsigned int wait_time)
 {
-    if (uartat_set_baudrate(m_uartat, baudrate))
-        throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_baudrate() failed");
+    rn2903_set_response_wait_time(m_rn2903, wait_time);
 }
 
-void UARTAT::setResponseWaitTime(unsigned int wait_time)
+void RN2903::setResponse2WaitTime(unsigned int wait_time)
 {
-    uartat_set_response_wait_time(m_uartat, wait_time);
+    rn2903_set_response2_wait_time(m_rn2903, wait_time);
 }
 
-bool UARTAT::dataAvailable(unsigned int millis)
+bool RN2903::dataAvailable(unsigned int millis)
 {
-    return uartat_data_available(m_uartat, millis);
+    return rn2903_data_available(m_rn2903, millis);
 }
 
-bool UARTAT::commandMode(std::string cmd_chars, unsigned int guard_ms)
+void RN2903::drain()
 {
-    return uartat_command_mode(m_uartat, cmd_chars.c_str(), guard_ms);
-}
-
-bool UARTAT::inCommandMode()
-{
-    return uartat_in_command_mode(m_uartat);
-}
-
-void UARTAT::drain()
-{
-    uartat_drain(m_uartat);
+    rn2903_drain(m_rn2903);
     return;
 }
 
-string UARTAT::commandWithResponse(const string cmd, size_t resp_len)
+RN2903_RESPONSE_T RN2903::command(const std::string cmd)
 {
-    char buffer[resp_len];
-
-    int rv;
-
-    if ((rv = uartat_command_with_response(m_uartat, cmd.c_str(), buffer,
-                                           resp_len)) < 0)
-        throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_command_with_response() failed");
-
-    return string(buffer, rv);
+    return rn2903_command(m_rn2903, cmd.c_str());
 }
 
-string UARTAT::commandWaitFor(const std::string cmd, size_t resp_len,
-                              const std::string waitString,
-                              unsigned int millis)
-{
-    char buffer[resp_len];
+RN2903_RESPONSE_T RN2903::commandWithArg(const std::string cmd,
+                                         const std::string arg)
 
-    if (uartat_command_waitfor(m_uartat, cmd.c_str(), buffer, resp_len,
-                               waitString.c_str(), millis))
-        return string(buffer, strlen(buffer));
-    else
+{
+    return rn2903_command_with_arg(m_rn2903, cmd.c_str(), arg.c_str());
+}
+
+RN2903_RESPONSE_T RN2903::waitForResponse(int wait_ms)
+{
+    return rn2903_waitfor_response(m_rn2903, wait_ms);
+}
+
+std::string RN2903::getResponse()
+{
+    return string(rn2903_get_response(m_rn2903),
+                  rn2903_get_response_len(m_rn2903));
+}
+
+int RN2903::getResponseLen()
+{
+    return rn2903_get_response_len(m_rn2903);
+}
+
+void RN2903::setDeviceEUI(const std::string str)
+{
+    if (rn2903_set_device_eui(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_device_eui() failed");
+}
+
+void RN2903::getDeviceEUI()
+{
+    if (rn2903_get_device_eui(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_get_device_eui() failed");
+}
+
+void RN2903::setApplicationEUI(const std::string str)
+{
+    if (rn2903_set_application_eui(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_application_eui() failed");
+}
+
+void RN2903::getApplicationEUI()
+{
+    if (rn2903_get_application_eui(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_get_application_eui() failed");
+}
+
+void RN2903::setApplicationKey(const std::string str)
+{
+    if (rn2903_set_application_key(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_application_key() failed");
+}
+
+void RN2903::getApplicationKey()
+{
+    if (rn2903_get_application_key(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_get_application_key() failed");
+}
+
+std::string RN2903::toHex(const std::string src)
+{
+    const char *buf = rn2903_to_hex(m_rn2903, src.c_str(), src.size());
+
+    if (!buf)
         return string("");
+    else
+        return string(buf);
 }
 
-void UARTAT::command(const string cmd)
+std::string RN2903::fromHex(const std::string src)
 {
-    uartat_command(m_uartat, cmd.c_str());
+    const char *buf = rn2903_from_hex(m_rn2903, src.c_str());
 
-    return;
+    if (!buf)
+        return string("");
+    else
+        return string(buf);
 }
 
-string UARTAT::stringCR2LF(string str)
+RN2903_JOIN_STATUS_T RN2903::join(RN2903_JOIN_TYPE_T type)
 {
-  for (size_t i=0; i<str.size(); i++)
-    if (str[i] == '\r')
-      str[i] = '\n';
-
-  return str;
+    return rn2903_join(m_rn2903, type);
 }
 
-void UARTAT::setFlowControl(UARTAT_FLOW_CONTROL_T fc)
+RN2903_MAC_TX_STATUS_T RN2903::macTx(RN2903_MAC_MSG_TYPE_T type, int port,
+                                     std::string payload)
 {
-    if (uartat_set_flow_control(m_uartat, fc))
+    return rn2903_mac_tx(m_rn2903, type, port, payload.c_str());
+}
+
+RN2903_RESPONSE_T RN2903::radioTx(const std::string payload)
+{
+    return rn2903_radio_tx(m_rn2903, payload.c_str());
+}
+
+RN2903_RESPONSE_T RN2903::radioRx(int window_size)
+{
+    return rn2903_radio_rx(m_rn2903, window_size);
+}
+
+std::string RN2903::getHardwareEUI()
+{
+    return string(rn2903_get_hardware_eui(m_rn2903));
+}
+
+void RN2903::updateMacStatus()
+{
+    if (rn2903_update_mac_status(m_rn2903))
         throw std::runtime_error(string(__FUNCTION__)
-                                 + ": uartat_set_flow_control() failed");
-
-    return;
+                                 + ": rn2903_update_mac_status() failed");
 }
 
-bool UARTAT::find(const std::string buffer, const std::string str)
+int RN2903::getMacStatusWord()
 {
-    return uartat_find(m_uartat, buffer.c_str(), str.c_str());
+    return int(rn2903_get_mac_status_word(m_rn2903));
 }
 
-void UARTAT::filterCR(bool enable)
+RN2903_MAC_STATUS_T RN2903::getMacStatus()
 {
-    uartat_filter_cr(m_uartat, enable);
+    return rn2903_get_mac_status(m_rn2903);
 }
+
+void RN2903::macSave()
+{
+    if (rn2903_mac_save(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_mac_save() failed");
+}
+
+void RN2903::macPause()
+{
+    if (rn2903_mac_pause(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_mac_pause() failed");
+}
+
+void RN2903::macResume()
+{
+    if (rn2903_mac_resume(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_mac_resume() failed");
+}
+
+void RN2903::reset()
+{
+    if (rn2903_reset(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_reset() failed");
+}
+
+void RN2903::macSetBattery(int level)
+{
+    if (rn2903_mac_set_battery(m_rn2903, level))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_mac_set_battery() failed");
+}
+
+void RN2903::setDebug(bool enable)
+{
+    rn2903_set_debug(m_rn2903, enable);
+}
+
+void RN2903::setBaudrate(unsigned int baudrate)
+{
+    if (rn2903_set_baudrate(m_rn2903, baudrate))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_baudrate() failed");
+}
+
+void RN2903::setFlowControl(RN2903_FLOW_CONTROL_T fc)
+{
+    if (rn2903_set_flow_control(m_rn2903, fc))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_flow_control() failed");
+}
+
+bool RN2903::find(const std::string str)
+{
+    return rn2903_find(m_rn2903, str.c_str());
+}
+
+std::string RN2903::getRadioRxPayload()
+{
+    const char *payload = rn2903_get_radio_rx_payload(m_rn2903);
+
+    if (!payload)
+        return string("");
+    else
+        return string(payload);
+}
+
+bool RN2903::autobaud(int retries)
+{
+    return rn2903_autobaud(m_rn2903, retries);
+}
+

@@ -32,21 +32,24 @@ extern "C" {
 #define RN2903_MAX_BUFFER (512)
 
 // size of hex encoded 64b EUI (IPV6 Extended Unique Identifier)
-#define RN2903_MAX_HEX_EUI64  (16) 
+#define RN2903_MAX_HEX_EUI64  (16)
 
 // default baudrate
-#define RN2903_DEFAULT_BAUDRATE 57600
+#define RN2903_DEFAULT_BAUDRATE (57600)
 
-    // This byte sequence must follow all commands.  All responses
-    // will also be followed by these bytes (\r\n - CR LF).
-    const char *RN2903_PHRASE_TERM = "\r\n";
-    const size_t RN2903_PHRASE_TERM_LEN = 2;
+// response wait times in milliseconds
+#define RN2903_DEFAULT_RESP_DELAY   (1000)   // 1 second
+#define RN2903_DEFAULT_RESP2_DELAY  (60000)  // 60 seconds
 
-    // invalid parameter
-    const char *RN2903_PHRASE_INV_PARAM = "invalid_param";
+// This byte sequence must follow all commands.  All responses
+// will also be followed by these bytes (\r\n - CR LF).
+#define RN2903_PHRASE_TERM "\r\n"
+#define RN2903_PHRASE_TERM_LEN (2)
 
-    // ok
-    const char *RN2903_PHRASE_OK = "ok";
+// invalid parameter
+#define RN2903_PHRASE_INV_PARAM "invalid_param"
+// ok
+#define RN2903_PHRASE_OK "ok"
 
     // RN2903_MAC_STATUS_BITS_T from "mac get status" cmd
     typedef enum {

@@ -31,10 +31,6 @@
 #include "upm_utilities.h"
 #include "upm_platform.h"
 
-// milliseconds
-#define RN2903_DEFAULT_RESP_DELAY   (1000)   // 1 second
-#define RN2903_DEFAULT_RESP2_DELAY  (60000)  // 60 seconds
-
 // we use small buffers of this size to build certain compound
 // commands
 #define RN2903_CMD_BUFFER_32B       (32) // 32 bytes
@@ -423,7 +419,7 @@ size_t rn2903_get_response_len(const rn2903_context dev)
     return dev->resp_len;
 }
 
-const char *rn2903_to_hex(const rn2903_context dev, const void *src, int len)
+const char *rn2903_to_hex(const rn2903_context dev, const char *src, int len)
 {
     assert(dev != NULL);
     assert(src != NULL);
@@ -1109,13 +1105,13 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
 {
     assert(dev != NULL);
 
+// we can make a real attempt at autobaud detection if we're on linux
+// running a new enough MRAA
+#if defined(UPM_PLATFORM_LINUX)
     do
     {
         // trigger rn2903 auto-baud detection
 
-// we can make a real attempt at autobaud detection if we're on linux
-// running a new enough MRAA
-#if defined(UPM_PLATFORM_LINUX)
         // send a break signal, then a 0x55, then try a command
         if (mraa_uart_sendbreak(dev->uart, 0))
         {
