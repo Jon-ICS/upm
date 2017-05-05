@@ -686,6 +686,28 @@ extern "C" {
     bool rn2903_find(const rn2903_context dev,
                      const char *str);
 
+    /**
+     * This is a utility function that can be used to return a pointer
+     * to the location in the response buffer where the hex encoded
+     * payload starts for radio_rx messages received.
+     *
+     * @param dev Device context
+     * @return A pointer to the start of the hex payload in the
+     * response buffer, or NULL if the response buffer does not
+     * contain a radio_rx sentence.
+     */
+    const char *rn2903_get_radio_rx_payload(const rn2903_context dev);
+
+    /**
+     * This function attempts to sync the device to the current
+     * baudrate.  It tries retries times, to send an autobaud
+     * sequence to the device and run a test command.
+     *
+     * @param dev Device context
+     * @param retries The number of times to retry autobaud detection
+     * @return true if the string was found at the beginning of the
+     * response bufer, false otherwise
+     */
     bool rn2903_autobaud(const rn2903_context dev, int retries);
 
 #ifdef __cplusplus

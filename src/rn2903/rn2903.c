@@ -1113,6 +1113,8 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
     {
         // trigger rn2903 auto-baud detection
 
+// we can make a real attempt at autobaud detection if we're on linux
+// running a new enough MRAA
 #if defined(UPM_PLATFORM_LINUX)
         // send a break signal, then a 0x55, then try a command
         if (mraa_uart_sendbreak(dev->uart, 0))
@@ -1126,7 +1128,6 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
         // The magic autobaud detection character
         char buf = 0x55;
         rn2903_write(dev, &buf, 1);
-#endif // UPM_PLATFORM_LINUX
 
         upm_delay_ms(100);
 
@@ -1143,6 +1144,31 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
 
     if (dev->debug)
         printf("%s: RETRIES %d: success!\n", __FUNCTION__, retries);
+#else
+    // Without true autobauding support, the best we can do is send a
+    // test command in the hopes we are at the right baudrate.
+    // Sometimes this works to "jumpstart" the device when starting up
+    // for the first time.  We will return true, regardless.  Without
+    // autobauding, you should not use any other baudrate than the
+    // default, 57600.
+
+    rn2903_command(dev, "sys get ver");
+    upm_delay_ms(100);
+
+#endif // UPM_PLATFORM_LINUX
 
     return true;
+}
+
+const char *rn2903_get_radio_rx_payload(const rn2903_context dev)
+{
+    assert(dev != NULL);
+
+    // first make sure we have the right data in the response buffer.
+    // The response buffer should contain "radio_rx<sp><sp><hex_payload>"
+    // (note the two spaces between radio_rx and the payload.)
+    if (rn2903_find(dev, "radio_rx") || dev->resp_len > 10)
+        return &(dev->resp_data[10]);
+
+    return NULL;
 }

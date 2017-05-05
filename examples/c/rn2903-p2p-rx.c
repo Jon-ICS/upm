@@ -55,8 +55,7 @@ int main(int argc, char **argv)
 
     // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
 #if defined(UPM_PLATFORM_ZEPHYR)
-    rn2903_context sensor = rn2903_init(0,
-                                        RN2903_DEFAULT_BAUDRATE);
+    rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
 #else
     rn2903_context sensor = rn2903_init_tty(defaultDev,
                                             RN2903_DEFAULT_BAUDRATE);
@@ -66,8 +65,7 @@ int main(int argc, char **argv)
     // to inititialize rather than the above, which by default uses a
     // tty path.
     //
-    //        rn2903_context sensor = rn2903_init(0,
-    //                                            RN2903_DEFAULT_BAUDRATE);
+    // rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
 
     if (!sensor)
     {
@@ -76,7 +74,7 @@ int main(int argc, char **argv)
     }
 
     // enable debugging
-    rn2903_set_debug(sensor, true);
+    // rn2903_set_debug(sensor, true);
 
     // get version
     if (rn2903_command(sensor, "sys get ver"))
@@ -108,6 +106,7 @@ int main(int argc, char **argv)
     // just loop here.
     while (shouldRun)
     {
+        printf("Waiting for packet...\n");
         RN2903_RESPONSE_T rv;
         rv = rn2903_radio_rx(sensor, 0);
         if (rv)
@@ -116,7 +115,13 @@ int main(int argc, char **argv)
         }
         else
         {
-            printf("Got response: '%s'\n", rn2903_get_response(sensor));
+            const char *resp = rn2903_get_response(sensor);
+            const char *payload = rn2903_get_radio_rx_payload(sensor);
+            if (!payload)
+                printf("Got response: '%s'\n", resp);
+            else
+                printf("Got payload: '%s'\n",
+                       rn2903_from_hex(sensor, payload));
         }
 
         printf("\n");

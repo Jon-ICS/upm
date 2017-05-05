@@ -55,19 +55,17 @@ int main(int argc, char **argv)
 
     // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
 #if defined(UPM_PLATFORM_ZEPHYR)
-    rn2903_context sensor = rn2903_init(0,
-                                        RN2903_DEFAULT_BAUDRATE);
+    rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
 #else
-//    rn2903_context sensor = rn2903_init_tty(defaultDev,
-//                                            RN2903_DEFAULT_BAUDRATE);
+    rn2903_context sensor = rn2903_init_tty(defaultDev,
+                                            RN2903_DEFAULT_BAUDRATE);
 #endif
 
     // To use an internal UART understood by MRAA, use the following
     // to inititialize rather than the above, which by default uses a
     // tty path.
     //
-            rn2903_context sensor = rn2903_init(0,
-                                                RN2903_DEFAULT_BAUDRATE);
+    // rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
 
     if (!sensor)
     {
@@ -76,7 +74,7 @@ int main(int argc, char **argv)
     }
 
     // enable debugging
-    rn2903_set_debug(sensor, true);
+    // rn2903_set_debug(sensor, true);
 
     // get version
     if (rn2903_command(sensor, "sys get ver"))
@@ -108,21 +106,19 @@ int main(int argc, char **argv)
     // implementation, you would not want to send packets that
     // frequently.
 
+    int count = 0;
     while (shouldRun)
     {
-        // All transmit payloads must be hex encoded strings, so
-        // pretend we have a temperature sensor that gave us a value
-        // of 25.6 C, and we want to transmit it.
-        const char *faketemp = "25.6";
-        const char *payload = rn2903_to_hex(sensor, faketemp, strlen(faketemp));
+        char pingbuf[32] = {};
+        snprintf(pingbuf, 32, "Ping %d", count++);
+        // All payloads must be hex encoded
+        const char *payload = rn2903_to_hex(sensor, pingbuf, strlen(pingbuf));
 
         printf("Transmitting a packet, data: '%s' -> hex: '%s'\n",
-               faketemp, payload);
+               pingbuf, payload);
 
         RN2903_RESPONSE_T rv;
-        rv = rn2903_radio_tx(sensor,
-                              rn2903_to_hex(sensor,
-                                            faketemp, strlen(faketemp)));
+        rv = rn2903_radio_tx(sensor, payload);
 
         if (rv == RN2903_RESPONSE_OK)
             printf("Transmit successful.\n");
