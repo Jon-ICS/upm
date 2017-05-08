@@ -90,7 +90,7 @@ namespace upm {
         /**
          * RN2903 object destructor
          */
-        ~RN2903();
+        virtual ~RN2903();
 
         /**
          * Set the default time, in milliseconds, to wait for a response
@@ -221,6 +221,62 @@ namespace upm {
          * @throws std::runtime_error if the mac get command failed
          */
         void getDeviceEUI();
+
+        /**
+         * Set the MAC device address for LoRaWAN communications.  The
+         * device address must be a hex encoded string of 8 bytes.  This
+         * value must be set for LoRaWAN ABP joining.
+         *
+         * For OTAA joining, this value will be overwritten once the join
+         * has completed, and therefore must not be set if performing an
+         * OTAA join.
+         *
+         * @param str The 8-byte hex encoded device address
+         * @throws std::runtime_error if the mac set command failed or
+         * the hex string is invalid
+         */
+        void setDeviceAddr(std::string str);
+
+        /**
+         * Retrieve the device address from the device.  If this
+         * function succeeds, you can then use getResponse() to get
+         * the value.
+         *
+         * @throws std::runtime_error if the mac get failed
+         */
+        void getDeviceAddr();
+
+        /**
+         * Set the MAC network session key for LoRaWAN communications.
+         * The network session key must be a hex encoded string of 32
+         * bytes.  This value must be set for LoRaWAN ABP joining.  It it
+         * not possible to retrieve this key.
+         *
+         * For OTAA joining, this value will be overwritten once the join
+         * has completed, and therefore must not be set if performing an
+         * OTAA join.
+         *
+         * @param str The 32-byte hex encoded network session key
+         * @throws std::runtime_error if the mac set command failed or
+         * the hex string is invalid
+         */
+        void setNetworkSessionKey(std::string str);
+
+        /**
+         * Set the MAC application session key for LoRaWAN communications.
+         * The application session key must be a hex encoded string of 32
+         * bytes.  This value must be set for LoRaWAN ABP joining.  It it
+         * not possible to retrieve this key.
+         *
+         * For OTAA joining, this value will be overwritten once the join
+         * has completed, and therefore must not be set if performing an
+         * OTAA join.
+         *
+         * @param str The 32-byte hex encoded application session key
+         * @throws std::runtime_error if the mac set command failed or
+         * the hex string is invalid
+         */
+        void setApplicationSessionKey(std::string str);
 
         /**
          * Set the MAC application EUI for LoRaWAN communications.  The

@@ -395,7 +395,7 @@ RN2903_RESPONSE_T rn2903_command_with_arg(const rn2903_context dev,
     assert(cmd != NULL);
     assert(arg != NULL);
 
-    // cmd<space>arg<space>0-terminator
+    // cmd<space>arg<0-terminator>
     int buflen = strlen(cmd) + 1 + strlen(arg) + 1;
     char buf[buflen];
     memset(buf, 0, buflen);
@@ -1105,18 +1105,23 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
 {
     assert(dev != NULL);
 
-// we can make a real attempt at autobaud detection if we're on linux
-// running a new enough MRAA
-#if defined(UPM_PLATFORM_LINUX)
     do
     {
         // trigger rn2903 auto-baud detection
 
         // send a break signal, then a 0x55, then try a command
-        if (mraa_uart_sendbreak(dev->uart, 0))
+        mraa_result_t rv;
+        if ((rv = mraa_uart_sendbreak(dev->uart, 0)))
         {
-            printf("%s: mraa_uart_sendbreak() failed.\n", __FUNCTION__);
-            return UPM_ERROR_OPERATION_FAILED;
+            // we don't want to fail here if break not implemented or
+            // supported
+            if (rv != MRAA_ERROR_FEATURE_NOT_IMPLEMENTED &&
+                rv != MRAA_ERROR_FEATURE_NOT_SUPPORTED)
+            {
+
+                printf("%s: mraa_uart_sendbreak() failed.\n", __FUNCTION__);
+                return UPM_ERROR_OPERATION_FAILED;
+            }
         }
 
         upm_delay_ms(100);
@@ -1140,18 +1145,6 @@ bool rn2903_autobaud(const rn2903_context dev, int retries)
 
     if (dev->debug)
         printf("%s: RETRIES %d: success!\n", __FUNCTION__, retries);
-#else
-    // Without true autobauding support, the best we can do is send a
-    // test command in the hopes we are at the right baudrate.
-    // Sometimes this works to "jumpstart" the device when starting up
-    // for the first time.  We will return true, regardless.  Without
-    // autobauding, you should not use any other baudrate than the
-    // default, 57600.
-
-    rn2903_command(dev, "sys get ver");
-    upm_delay_ms(100);
-
-#endif // UPM_PLATFORM_LINUX
 
     return true;
 }

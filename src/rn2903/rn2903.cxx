@@ -140,6 +140,20 @@ void RN2903::getDeviceEUI()
                                  + ": rn2903_get_device_eui() failed");
 }
 
+void RN2903::setNetworkSessionKey(const std::string str)
+{
+    if (rn2903_set_network_session_key(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_network_session_key() failed");
+}
+
+void RN2903::setApplicationSessionKey(const std::string str)
+{
+    if (rn2903_set_application_session_key(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_application_session_key() failed");
+}
+
 void RN2903::setApplicationEUI(const std::string str)
 {
     if (rn2903_set_application_eui(m_rn2903, str.c_str()))
@@ -166,6 +180,20 @@ void RN2903::getApplicationKey()
     if (rn2903_get_application_key(m_rn2903))
         throw std::runtime_error(string(__FUNCTION__)
                                  + ": rn2903_get_application_key() failed");
+}
+
+void RN2903::setDeviceAddr(const std::string str)
+{
+    if (rn2903_set_device_addr(m_rn2903, str.c_str()))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_set_device_addr() failed");
+}
+
+void RN2903::getDeviceAddr()
+{
+   if (rn2903_get_device_addr(m_rn2903))
+        throw std::runtime_error(string(__FUNCTION__)
+                                 + ": rn2903_get_device_addr() failed");
 }
 
 std::string RN2903::toHex(const std::string src)

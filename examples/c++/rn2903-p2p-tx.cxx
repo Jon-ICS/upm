@@ -23,69 +23,58 @@
  */
 
 #include <unistd.h>
-#include <stdio.h>
-#include <string.h>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <signal.h>
 
-#include "rn2903.h"
+#include "rn2903.hpp"
 #include "upm_utilities.h"
-#include "upm_platform.h"
+
+using namespace std;
 
 bool shouldRun = true;
 
 void sig_handler(int signo)
 {
-    if (signo == SIGINT)
-        shouldRun = false;
+  if (signo == SIGINT)
+    shouldRun = false;
 }
 
-#if defined(UPM_PLATFORM_ZEPHYR) && !defined(CONFIG_STDOUT_CONSOLE)
-# define printf printk
-#endif
 
 int main(int argc, char **argv)
 {
+  signal(SIGINT, sig_handler);
 //! [Interesting]
 
-    char *defaultDev = "/dev/ttyUSB0";
+    string defaultDev = "/dev/ttyUSB0";
     if (argc > 1)
         defaultDev = argv[1];
 
-    printf("Using device: %s\n", defaultDev);
+    cout << "Using device: " << defaultDev << endl;
 
     // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
-#if defined(UPM_PLATFORM_ZEPHYR)
-    rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
-#else
-    rn2903_context sensor = rn2903_init_tty(defaultDev,
-                                            RN2903_DEFAULT_BAUDRATE);
-#endif
+    upm::RN2903 sensor = upm::RN2903(defaultDev,
+                                     RN2903_DEFAULT_BAUDRATE);
 
     // To use an internal UART understood by MRAA, use the following
     // to inititialize rather than the above, which by default uses a
     // tty path.
     //
-    // rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
-
-    if (!sensor)
-    {
-        printf("rn2903_init_tty() failed.\n");
-        return 1;
-    }
+    // upm::RN2903 sensor = upm::RN2903(0, RN2903_DEFAULT_BAUDRATE);
 
     // enable debugging
-    // rn2903_set_debug(sensor, true);
+    // sensor.setDebug(true);
 
     // get version
-    if (rn2903_command(sensor, "sys get ver"))
+    if (sensor.command("sys get ver"))
     {
-        printf("Failed to retrieve device version string\n");
-        rn2903_close(sensor);
+        cout << "Failed to retrieve device version string" << endl;
         return 1;
     }
-    printf("Firmware version: %s\n", rn2903_get_response(sensor));
+    cout << "Firmware version: " << sensor.getResponse() << endl;
 
-    printf("Hardware EUI: %s\n", rn2903_get_hardware_eui(sensor));
+    cout << "Hardware EUI: " << sensor.getHardwareEUI() << endl;
 
     // For this example, we will just try transmitting a packet over
     // LoRa.  We reset the device to defaults, and we do not make any
@@ -93,12 +82,7 @@ int main(int argc, char **argv)
     // to do so for a real life application.
 
     // The first thing to do is to suspend the LoRaWAN stack on the device.
-    if (rn2903_mac_pause(sensor))
-    {
-        printf("Failed to pause the LoRaWAN stack\n");
-        rn2903_close(sensor);
-        return 1;
-    }
+    sensor.macPause();
 
     // the default radio watchdog timer is set for 15 seconds, so we
     // will send a packet every 10 seconds.  In reality, local
@@ -109,29 +93,32 @@ int main(int argc, char **argv)
     int count = 0;
     while (shouldRun)
     {
-        char pingbuf[32] = {};
-        snprintf(pingbuf, 32, "Ping %d", count++);
-        // All payloads must be hex encoded
-        const char *payload = rn2903_to_hex(sensor, pingbuf, strlen(pingbuf));
+        ostringstream output;
+        output << "Ping " << count++;
 
-        printf("Transmitting a packet, data: '%s' -> hex: '%s'\n",
-               pingbuf, payload);
+        // All payloads must be hex encoded
+        string payload = sensor.toHex(output.str());
+
+        cout << "Transmitting a packet, data: '"
+             << output.str()
+             << "' -> hex: '"
+             << payload
+             << "'"
+             << endl;
 
         RN2903_RESPONSE_T rv;
-        rv = rn2903_radio_tx(sensor, payload);
+        rv = sensor.radioTx(payload);
 
         if (rv == RN2903_RESPONSE_OK)
-            printf("Transmit successful.\n");
+            cout << "Transmit successful." << endl;
         else
-            printf("Transmit failed with code %d.\n", rv);
+            cout << "Transmit failed with code " << int(rv) << endl;
 
-        printf("\n");
+        cout << endl;
         upm_delay(10);
     }
 
-    printf("Exiting\n");
-
-    rn2903_close(sensor);
+    cout << "Exiting" << endl;
 
 //! [Interesting]
 

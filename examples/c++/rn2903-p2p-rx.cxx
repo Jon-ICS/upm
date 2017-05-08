@@ -23,69 +23,58 @@
  */
 
 #include <unistd.h>
-#include <stdio.h>
-#include <string.h>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <signal.h>
 
-#include "rn2903.h"
+#include "rn2903.hpp"
 #include "upm_utilities.h"
-#include "upm_platform.h"
 
-int shouldRun = true;
+using namespace std;
+
+bool shouldRun = true;
 
 void sig_handler(int signo)
 {
-    if (signo == SIGINT)
-        shouldRun = false;
+  if (signo == SIGINT)
+    shouldRun = false;
 }
 
-#if defined(UPM_PLATFORM_ZEPHYR) && !defined(CONFIG_STDOUT_CONSOLE)
-# define printf printk
-#endif
 
 int main(int argc, char **argv)
 {
+  signal(SIGINT, sig_handler);
 //! [Interesting]
 
-    char *defaultDev = "/dev/ttyUSB0";
+    string defaultDev = "/dev/ttyUSB0";
     if (argc > 1)
         defaultDev = argv[1];
 
-    printf("Using device: %s\n", defaultDev);
+    cout << "Using device: " << defaultDev << endl;
 
     // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
-#if defined(UPM_PLATFORM_ZEPHYR)
-    rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
-#else
-    rn2903_context sensor = rn2903_init_tty(defaultDev,
-                                            RN2903_DEFAULT_BAUDRATE);
-#endif
+    upm::RN2903 sensor = upm::RN2903(defaultDev,
+                                     RN2903_DEFAULT_BAUDRATE);
 
     // To use an internal UART understood by MRAA, use the following
     // to inititialize rather than the above, which by default uses a
     // tty path.
     //
-    // rn2903_context sensor = rn2903_init(0, RN2903_DEFAULT_BAUDRATE);
-
-    if (!sensor)
-    {
-        printf("rn2903_init_tty() failed.\n");
-        return 1;
-    }
+    //     upm::RN2903 sensor = upm::RN2903(0, RN2903_DEFAULT_BAUDRATE);
 
     // enable debugging
-    // rn2903_set_debug(sensor, true);
+    // sensor.setDebug(true);
 
     // get version
-    if (rn2903_command(sensor, "sys get ver"))
+    if (sensor.command("sys get ver"))
     {
-        printf("Failed to retrieve device version string\n");
-        rn2903_close(sensor);
+        cout << "Failed to retrieve device version string" << endl;
         return 1;
     }
-    printf("Firmware version: %s\n", rn2903_get_response(sensor));
+    cout << "Firmware version: " << sensor.getResponse() << endl;
 
-    printf("Hardware EUI: %s\n", rn2903_get_hardware_eui(sensor));
+    cout << "Hardware EUI: " << sensor.getHardwareEUI() << endl;
 
     // For this example, we will just try to receive a packet
     // transmitted by the p2p-tx rn2903 example.  We reset the
@@ -94,42 +83,38 @@ int main(int argc, char **argv)
     // real life application.
 
     // The first thing to do is to suspend the LoRaWAN stack on the device.
-    if (rn2903_mac_pause(sensor))
-    {
-        printf("Failed to pause the LoRaWAN stack\n");
-        rn2903_close(sensor);
-        return 1;
-    }
+    sensor.macPause();
 
     // We will use continuous mode (window_size 0), though the default
     // radio watch dog timer will expire every 15 seconds.  We will
     // just loop here.
+
     while (shouldRun)
     {
-        printf("Waiting for packet...\n");
+        cout << "Waiting for packet..." << endl;
         RN2903_RESPONSE_T rv;
-        rv = rn2903_radio_rx(sensor, 0);
+        rv = sensor.radioRx(0);
         if (rv)
         {
-            printf("rn2903_radio_rx() failed with code (%d)\n", rv);
+            cout << "radioRx() failed with code " << int(rv) << endl;
         }
         else
         {
-            const char *resp = rn2903_get_response(sensor);
-            const char *payload = rn2903_get_radio_rx_payload(sensor);
-            if (!payload)
-                printf("Got response: '%s'\n", resp);
+            string resp = sensor.getResponse();
+            string payload = sensor.getRadioRxPayload();
+            if (!payload.size())
+                cout << "Got response: '" << resp << "'" << endl;
             else
-                printf("Got payload: '%s'\n",
-                       rn2903_from_hex(sensor, payload));
+                cout <<"Got payload: '"
+                     << sensor.fromHex(payload)
+                     << "'"
+                     << endl;
         }
 
-        printf("\n");
+        cout << endl;
     }
 
-    printf("Exiting\n");
-
-    rn2903_close(sensor);
+    cout << "Exiting" << endl;
 
 //! [Interesting]
 
