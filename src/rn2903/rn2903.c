@@ -48,7 +48,7 @@
 #undef _SHIFTMASK
 #define _SHIFTMASK(x) (_MASK(x) << _SHIFT(x))
 
-// disable printf to stdout of on Zephyr, and stdout isn't available.
+// disable printf to stdout if on Zephyr, and stdout isn't available.
 #if defined(UPM_PLATFORM_ZEPHYR) && !defined(CONFIG_STDOUT_CONSOLE)
 # define printf printk
 #endif
