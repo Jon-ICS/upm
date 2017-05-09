@@ -24,7 +24,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import upm_rn2903.RN2903;
+import upm_rn2903.*;
 
 public class RN2903_P2P_RX_Example
 {
@@ -41,7 +41,7 @@ public class RN2903_P2P_RX_Example
 
         // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
         RN2903 sensor = new RN2903(defaultDev,
-                                   upm_rn2903.javaupm_rn2903.RN2903_DEFAULT_BAUDRATE);
+                                   javaupm_rn2903.RN2903_DEFAULT_BAUDRATE);
 
         // To use an internal UART understood by MRAA, use the following
         // to inititialize rather than the above, which by default uses a
@@ -55,7 +55,7 @@ public class RN2903_P2P_RX_Example
 
         // get version
         if (sensor.command("sys get ver")
-            != upm_rn2903.RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
+            != RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
         {
             System.out.println("Failed to retrieve device version string");
             System.exit(1);
@@ -80,8 +80,8 @@ public class RN2903_P2P_RX_Example
         while (true)
         {
             System.out.println("Waiting for packet...");
-            upm_rn2903.RN2903_RESPONSE_T rv = sensor.radioRx(0);
-            if (rv != upm_rn2903.RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
+            RN2903_RESPONSE_T rv = sensor.radioRx(0);
+            if (rv != RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
             {
                 System.out.println("radioRx() failed with code "
                                     + rv.toString());

@@ -24,7 +24,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import upm_rn2903.RN2903;
+import upm_rn2903.*;
 
 public class RN2903_Example
 {
@@ -41,7 +41,7 @@ public class RN2903_Example
 
         // Instantiate a RN2903 sensor on defaultDev at 57600 baud.
         RN2903 sensor = new RN2903(defaultDev,
-                                   upm_rn2903.javaupm_rn2903.RN2903_DEFAULT_BAUDRATE);
+                                   javaupm_rn2903.RN2903_DEFAULT_BAUDRATE);
 
         // To use an internal UART understood by MRAA, use the following
         // to inititialize rather than the above, which by default uses a
@@ -55,7 +55,7 @@ public class RN2903_Example
 
         // get version
         if (sensor.command("sys get ver")
-            != upm_rn2903.RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
+            != RN2903_RESPONSE_T.RN2903_RESPONSE_OK)
         {
             System.out.println("Failed to retrieve device version string");
             System.exit(1);
@@ -92,10 +92,10 @@ public class RN2903_Example
         sensor.setNetworkSessionKey("00112233001122330011223300112233");
         sensor.setApplicationSessionKey("00112233001122330011223300112233");
 
-        upm_rn2903.RN2903_JOIN_STATUS_T rv =
-            sensor.join(upm_rn2903.RN2903_JOIN_TYPE_T.RN2903_JOIN_TYPE_ABP);
+        RN2903_JOIN_STATUS_T rv =
+            sensor.join(RN2903_JOIN_TYPE_T.RN2903_JOIN_TYPE_ABP);
 
-        if (rv == upm_rn2903.RN2903_JOIN_STATUS_T.RN2903_JOIN_STATUS_ACCEPTED)
+        if (rv == RN2903_JOIN_STATUS_T.RN2903_JOIN_STATUS_ACCEPTED)
         {
             System.out.println("Join successful.");
 
@@ -105,17 +105,17 @@ public class RN2903_Example
             String faketemp = "25.6";
             System.out.println("Transmitting a packet...");
 
-            upm_rn2903.RN2903_MAC_TX_STATUS_T trv =
-                sensor.macTx(upm_rn2903.RN2903_MAC_MSG_TYPE_T.RN2903_MAC_MSG_TYPE_UNCONFIRMED,
+            RN2903_MAC_TX_STATUS_T trv =
+                sensor.macTx(RN2903_MAC_MSG_TYPE_T.RN2903_MAC_MSG_TYPE_UNCONFIRMED,
                              1, // port number
                              sensor.toHex(faketemp));
 
-            if (trv == upm_rn2903.RN2903_MAC_TX_STATUS_T.RN2903_MAC_TX_STATUS_TX_OK)
+            if (trv == RN2903_MAC_TX_STATUS_T.RN2903_MAC_TX_STATUS_TX_OK)
                 System.out.println("Transmit successful.");
             else
             {
                 // check to see if we got a downlink packet
-                if (trv == upm_rn2903.RN2903_MAC_TX_STATUS_T.RN2903_MAC_TX_STATUS_RX_RECEIVED)
+                if (trv == RN2903_MAC_TX_STATUS_T.RN2903_MAC_TX_STATUS_RX_RECEIVED)
                 {
                     System.out.println("Transmit successful, downlink packet received: "
                                 + sensor.getResponse());
